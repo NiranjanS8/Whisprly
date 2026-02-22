@@ -1,0 +1,73 @@
+package com.chatapp.controller;
+
+import com.chatapp.dto.AddMemberRequest;
+import com.chatapp.dto.ChatRoomRequest;
+import com.chatapp.dto.ChatRoomResponse;
+import com.chatapp.dto.MemberResponse;
+import com.chatapp.model.User;
+import com.chatapp.service.ChatRoomService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/rooms")
+@RequiredArgsConstructor
+public class ChatRoomController {
+
+    private final ChatRoomService chatRoomService;
+
+    @PostMapping
+    public ResponseEntity<ChatRoomResponse> createRoom(
+            @Valid @RequestBody ChatRoomRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.createRoom(request.getName(), currentUser.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ChatRoomResponse>> getUserRooms(@AuthenticationPrincipal User currentUser) {
+        List<ChatRoomResponse> rooms = chatRoomService.getUserRooms(currentUser.getId());
+        return ResponseEntity.ok(rooms);
+    }
+
+    @GetMapping("/{roomId}")
+    public ResponseEntity<ChatRoomResponse> getRoomDetails(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.getRoomDetails(roomId, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{roomId}/members")
+    public ResponseEntity<List<MemberResponse>> getRoomMembers(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        List<MemberResponse> members = chatRoomService.getRoomMembers(roomId, currentUser.getId());
+        return ResponseEntity.ok(members);
+    }
+
+    @PostMapping("/{roomId}/members")
+    public ResponseEntity<MemberResponse> addMember(
+            @PathVariable UUID roomId,
+            @Valid @RequestBody AddMemberRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        MemberResponse response = chatRoomService.addMember(roomId, request.getUserId(), currentUser.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/{roomId}/members/{userId}")
+    public ResponseEntity<Void> removeMember(
+            @PathVariable UUID roomId,
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal User currentUser) {
+        chatRoomService.removeMember(roomId, userId, currentUser.getId());
+        return ResponseEntity.noContent().build();
+    }
+}

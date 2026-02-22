@@ -1,0 +1,42 @@
+server:
+  port: 9090
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chatapp
+    username: postgres
+    password: admin@123
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+app:
+  jwt:
+    secret: f8a3b7c1d9e2f0a4b6c8d1e3f5a7b9c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9f1
+    access-token-expiration-ms: 900000      # 15 minutes
+    refresh-token-expiration-ms: 604800000  # 7 days
+
+logging:
+  level:
+    root: INFO
+    com.chatapp: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
