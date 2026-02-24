@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 export interface AuthState {
     accessToken: string | null;
@@ -40,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'whisprly-auth-storage',
+            storage: createJSONStorage(() => sessionStorage),
         }
     )
 );

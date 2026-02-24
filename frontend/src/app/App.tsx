@@ -43,7 +43,7 @@ function ChatLayout() {
                         onClick={() => setSidebarOpen(true)}
                         aria-label="Open sidebar"
                     >
-                        ☰
+                        ?
                     </button>
                     <span className="brand-logo">Whisprly</span>
                 </div>
@@ -86,3 +86,4 @@ export default function App() {
         </BrowserRouter>
     );
 }
+
