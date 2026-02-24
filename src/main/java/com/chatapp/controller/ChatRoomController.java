@@ -76,6 +76,14 @@ public class ChatRoomController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/{roomId}")
+    public ResponseEntity<Void> deleteRoom(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        chatRoomService.deleteRoom(roomId, currentUser.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{roomId}/join")
     public ResponseEntity<ChatRoomResponse> joinRoom(
             @PathVariable UUID roomId,

@@ -3,6 +3,7 @@ import httpClient from '../../shared/httpClient';
 export interface Room {
     id: string;
     name: string;
+    type?: string;
     createdAt: string;
     createdById: string;
     createdByUsername: string;
@@ -45,4 +46,8 @@ export async function joinRoom(roomId: string): Promise<Room> {
 
 export async function removeMember(roomId: string, userId: string): Promise<void> {
     await httpClient.delete(`/rooms/${roomId}/members/${userId}`);
+}
+
+export async function deleteRoom(roomId: string): Promise<void> {
+    await httpClient.delete(`/rooms/${roomId}`);
 }

@@ -20,5 +20,7 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     @Query("SELECT m FROM ChatRoomMember m JOIN FETCH m.user WHERE m.room.id = :roomId ORDER BY m.joinedAt")
     List<ChatRoomMember> findMembersWithUserByRoomId(@Param("roomId") UUID roomId);
 
+    void deleteByRoomId(UUID roomId);
+
     void deleteByRoomIdAndUserId(UUID roomId, UUID userId);
 }

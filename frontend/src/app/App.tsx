@@ -7,6 +7,7 @@ import RegisterPage from '../features/auth/RegisterPage';
 import Sidebar from '../features/rooms/Sidebar';
 import ChatPanel from '../features/chat/ChatPanel';
 import ProfilePage from '../features/profile/ProfilePage';
+import { fetchMyProfile } from '../features/profile/profileApi';
 import './App.css';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -15,23 +16,60 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <>{children}</>;
 }
 
+function resolveAvatarUrl(raw: string | null): string | null {
+    if (!raw || !raw.trim()) return null;
+    const value = raw.trim();
+
+    if (
+        value.startsWith('data:image/') ||
+        value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('blob:')
+    ) {
+        return value;
+    }
+
+    if (value.startsWith('/')) {
+        const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:9090';
+        return `${backendOrigin}${value}`;
+    }
+
+    return value;
+}
+
 function ChatLayout() {
     const navigate = useNavigate();
     const accessToken = useAuthStore((s) => s.accessToken);
     const username = useAuthStore((s) => s.username);
+    const avatarUrl = useAuthStore((s) => s.avatarUrl);
+    const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
+    const setUsername = useAuthStore((s) => s.setUsername);
     const clearAuth = useAuthStore((s) => s.clearAuth);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+    const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
     const headerMenuRef = useRef<HTMLDivElement | null>(null);
+    const resolvedAvatarUrl = resolveAvatarUrl(avatarUrl);
 
     useEffect(() => {
         if (accessToken) {
             wsService.connect(accessToken);
+            fetchMyProfile()
+                .then((profile) => {
+                    setAvatarUrl(profile.avatarUrl ?? null);
+                    if (profile.username) {
+                        setUsername(profile.username);
+                    }
+                    setAvatarLoadFailed(false);
+                })
+                .catch(() => {
+                    // no-op; keep existing auth state
+                });
         }
         return () => {
             wsService.disconnect();
         };
-    }, [accessToken]);
+    }, [accessToken, setAvatarUrl, setUsername]);
 
     const handleLogout = () => {
         wsService.disconnect();
@@ -87,7 +125,17 @@ function ChatLayout() {
                             aria-expanded={headerMenuOpen}
                             onClick={() => setHeaderMenuOpen((prev) => !prev)}
                         >
-                            <span className="user-avatar">{username ? username[0].toUpperCase() : '?'}</span>
+                            <span className="user-avatar">
+                                {resolvedAvatarUrl && !avatarLoadFailed ? (
+                                    <img
+                                        src={resolvedAvatarUrl}
+                                        alt="Profile avatar"
+                                        onError={() => setAvatarLoadFailed(true)}
+                                    />
+                                ) : (
+                                    username ? username[0].toUpperCase() : '?'
+                                )}
+                            </span>
                         </button>
                         {headerMenuOpen && (
                             <div className="header-menu-popover" role="menu" aria-label="Header actions">

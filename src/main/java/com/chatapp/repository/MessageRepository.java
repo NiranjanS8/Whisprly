@@ -18,4 +18,6 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     Page<Message> findByRoomIdWithSender(@Param("roomId") UUID roomId, Pageable pageable);
 
     Optional<Message> findByIdempotencyKey(UUID idempotencyKey);
+
+    void deleteByRoomId(UUID roomId);
 }

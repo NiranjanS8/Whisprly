@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useRoomStore } from './roomStore';
-import { fetchRooms, createRoom, joinRoom, removeMember } from './roomApi';
+import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
@@ -16,7 +16,9 @@ interface SidebarProps {
 type ComposerMode = 'none' | 'create' | 'join' | 'chat';
 
 function formatRoomTimestamp(dateString: string): string {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
     const now = new Date();
     const sameDay = date.toDateString() === now.toDateString();
 
@@ -30,6 +32,7 @@ function formatRoomTimestamp(dateString: string): string {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const { rooms, activeRoomId, setRooms, addRoom, setActiveRoom } = useRoomStore();
     const userId = useAuthStore((s) => s.userId);
+    const username = useAuthStore((s) => s.username);
 
     const [composerMode, setComposerMode] = useState<ComposerMode>('none');
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -74,7 +77,33 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return () => document.removeEventListener('click', handleDocClick);
     }, []);
 
-    const filteredRooms = rooms.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
+    const normalizedSearch = search.trim().toLowerCase();
+
+    const getDirectMessageName = (room: Room): string => {
+        const roomName = room.name?.trim() || 'Direct Message';
+        if (!username) return roomName;
+
+        const participants = roomName.split('&').map((part) => part.trim()).filter(Boolean);
+        if (participants.length === 2) {
+            const other = participants.find((part) => part.toLowerCase() !== username.toLowerCase());
+            if (other) return other;
+        }
+        return roomName;
+    };
+
+    const matchesSearch = (room: Room): boolean => {
+        if (!normalizedSearch) return true;
+        const displayName = room.type === 'DM' ? getDirectMessageName(room) : room.name;
+        return displayName.toLowerCase().includes(normalizedSearch);
+    };
+
+    const directMessages = rooms
+        .filter((room) => room.type === 'DM')
+        .filter(matchesSearch);
+
+    const groupRooms = rooms
+        .filter((room) => room.type !== 'DM')
+        .filter(matchesSearch);
 
     const copyText = async (value: string, label: string) => {
         try {
@@ -222,14 +251,29 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }
     };
 
-    const handleDeleteRoom = (room: Room) => {
+    const handleDeleteRoom = async (room: Room) => {
         if (room.createdById !== userId) {
             setCopiedText('Only room owner can delete');
-        } else {
-            setCopiedText('Delete is not available yet');
+            setTimeout(() => setCopiedText(''), 1800);
+            setRoomMenuOpenId(null);
+            return;
         }
-        setTimeout(() => setCopiedText(''), 1800);
-        setRoomMenuOpenId(null);
+
+        try {
+            await deleteRoom(room.id);
+            const nextRooms = rooms.filter((item) => item.id !== room.id);
+            setRooms(nextRooms);
+            if (activeRoomId === room.id) {
+                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].id : null);
+            }
+            setCopiedText('Room deleted');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to delete room';
+            setCopiedText(msg);
+        } finally {
+            setTimeout(() => setCopiedText(''), 1800);
+            setRoomMenuOpenId(null);
+        }
     };
 
     return (
@@ -254,7 +298,74 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             <div className="sidebar-rooms" role="listbox" aria-label="Chat rooms">
-                {filteredRooms.map((room) => (
+                <section className="chat-section" aria-label="Direct Messages">
+                    <div className="chat-section-title">Direct Messages</div>
+                    {directMessages.map((room) => (
+                        <div
+                            key={room.id}
+                            className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''}`}
+                            onClick={() => selectRoom(room)}
+                            role="option"
+                            aria-selected={activeRoomId === room.id}
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    selectRoom(room);
+                                }
+                            }}
+                        >
+                            <div className="room-card__avatar">{getInitials(getDirectMessageName(room))}</div>
+                            <div className="room-card__content">
+                                <div className="room-card__toprow">
+                                    <span className="room-card__name">{getDirectMessageName(room)}</span>
+                                    <span className="room-card__time">{formatRoomTimestamp(room.createdAt)}</span>
+                                </div>
+                                <span className="room-card__meta">Direct message</span>
+                            </div>
+                            <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                    type="button"
+                                    className="room-menu-trigger"
+                                    aria-label="Room actions"
+                                    onClick={() => setRoomMenuOpenId((prev) => (prev === room.id ? null : room.id))}
+                                >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+                                        <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                                        <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+                                    </svg>
+                                </button>
+                                {roomMenuOpenId === room.id && (
+                                    <div className="room-menu">
+                                        <button type="button" onClick={() => copyText(room.id, 'Room ID')}>
+                                            Copy Room ID
+                                        </button>
+                                        <button type="button" onClick={() => handleRoomInfo(room)}>
+                                            Room Info
+                                        </button>
+                                        <button type="button" onClick={() => handleToggleMute(room.id)}>
+                                            {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
+                                        </button>
+                                        <button type="button" onClick={() => handleLeaveRoom(room.id)}>
+                                            Leave Room
+                                        </button>
+                                        <button type="button" className="room-menu-danger" onClick={() => handleDeleteRoom(room)}>
+                                            Delete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {directMessages.length === 0 && (
+                        <div className="section-empty">{normalizedSearch ? 'No matching direct messages' : 'No direct messages'}</div>
+                    )}
+                </section>
+
+                <section className="chat-section" aria-label="Rooms">
+                    <div className="chat-section-title">Rooms</div>
+                    {groupRooms.map((room) => (
                     <div
                         key={room.id}
                         className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''}`}
@@ -313,10 +424,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             )}
                         </div>
                     </div>
-                ))}
+                    ))}
+                    {groupRooms.length === 0 && (
+                        <div className="section-empty">{normalizedSearch ? 'No matching rooms' : 'No rooms yet'}</div>
+                    )}
+                </section>
 
-                {filteredRooms.length === 0 && (
-                    <div className="sidebar-empty">{search ? 'No matching rooms' : 'No rooms yet'}</div>
+                {directMessages.length === 0 && groupRooms.length === 0 && (
+                    <div className="sidebar-empty">{normalizedSearch ? 'No chats found' : 'No chats yet'}</div>
                 )}
             </div>
 

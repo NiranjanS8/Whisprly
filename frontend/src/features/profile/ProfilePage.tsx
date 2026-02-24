@@ -46,6 +46,7 @@ async function createCroppedAvatarDataUrl(file: File): Promise<string> {
 export default function ProfilePage() {
     const navigate = useNavigate();
     const setUsername = useAuthStore((s) => s.setUsername);
+    const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -141,6 +142,7 @@ export default function ProfilePage() {
                 avatarUrl: updated.avatarUrl ?? '',
             });
             setUsername(updated.username);
+            setAvatarUrl(updated.avatarUrl ?? null);
             setSuccess('Profile saved');
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to save profile';

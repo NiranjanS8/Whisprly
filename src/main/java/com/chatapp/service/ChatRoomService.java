@@ -12,6 +12,7 @@ import com.chatapp.model.RoomType;
 import com.chatapp.model.User;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.ChatRoomRepository;
+import com.chatapp.repository.MessageRepository;
 import com.chatapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
 
     @Transactional
     public ChatRoomResponse createRoom(String name, UUID creatorId, Integer maxMembers, String allowedMediaTypes) {
@@ -210,6 +212,21 @@ public class ChatRoomService {
 
         memberRepository.deleteByRoomIdAndUserId(roomId, targetUserId);
         log.info("Member removed: roomId={}, userId={}, removedBy={}", roomId, targetUserId, requesterId);
+    }
+
+    @Transactional
+    public void deleteRoom(UUID roomId, UUID requesterId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
+
+        if (!room.getCreatedBy().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Only room owner can delete this room");
+        }
+
+        messageRepository.deleteByRoomId(roomId);
+        memberRepository.deleteByRoomId(roomId);
+        chatRoomRepository.delete(room);
+        log.info("Room deleted: roomId={}, deletedBy={}", roomId, requesterId);
     }
 
     @Transactional

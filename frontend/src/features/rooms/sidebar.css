@@ -74,7 +74,31 @@
     padding: 12px 16px 16px;
     display: flex;
     flex-direction: column;
+    gap: 14px;
+}
+
+.chat-section {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+}
+
+.chat-section-title {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #97a1ae;
+    font-weight: 700;
+    padding: 0 4px;
+}
+
+.section-empty {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #8e98a5;
+    border: 1px dashed #2f3947;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .room-card {
