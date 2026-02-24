@@ -175,14 +175,20 @@
     background: transparent;
     color: #9ea8b6;
     cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .room-menu-trigger:hover {
     background: #262d37;
     border-color: #313b49;
     color: #d7dce4;
+}
+
+.room-menu-trigger svg {
+    width: 16px;
+    height: 16px;
 }
 
 .room-menu {
@@ -210,6 +216,15 @@
 
 .room-menu button:hover {
     background: #2b3441;
+}
+
+.room-menu .room-menu-danger {
+    color: #fca5a5;
+}
+
+.room-menu .room-menu-danger:hover {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
 }
 
 .sidebar-empty {

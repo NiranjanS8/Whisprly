@@ -24,7 +24,7 @@
 .top-bar-right {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-3);
 }
 
 .brand-logo {
@@ -83,35 +83,76 @@
     color: var(--color-text-primary);
 }
 
-.logout-btn {
-    background: none;
-    border: none;
-    padding: var(--space-2);
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    border-radius: var(--radius-sm);
-    transition: all 0.2s;
-    font-weight: 600;
-    font-size: var(--font-size-sm);
-}
-
-.logout-btn:hover {
-    background-color: rgba(239, 68, 68, 0.12);
-    color: var(--color-error);
-    transform: translateY(-2px);
-}
-
 .mobile-menu-btn {
     display: none;
-    background: none;
-    border: none;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     color: var(--color-text-primary);
     font-size: var(--font-size-lg);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+}
+
+.header-menu {
+    position: relative;
+}
+
+.header-menu-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-input);
+    color: var(--color-text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.header-menu-btn:hover {
+    border-color: #3a475a;
+    color: var(--color-text-primary);
+}
+
+.header-menu-popover {
+    position: absolute;
+    top: 44px;
+    right: 0;
+    min-width: 160px;
+    background: #202730;
+    border: 1px solid #313b49;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+    z-index: 60;
+}
+
+.header-menu-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #d8dee7;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.header-menu-item:hover {
+    background: #2a3441;
+}
+
+.header-menu-item--danger {
+    color: #f87171;
 }
 
 @media (max-width: 768px) {
     .mobile-menu-btn {
-        display: block;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 }

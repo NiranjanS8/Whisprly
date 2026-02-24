@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import { wsService } from '../features/chat/websocket';
@@ -19,6 +19,8 @@ function ChatLayout() {
     const username = useAuthStore((s) => s.username);
     const clearAuth = useAuthStore((s) => s.clearAuth);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+    const headerMenuRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (accessToken) {
@@ -34,6 +36,28 @@ function ChatLayout() {
         clearAuth();
     };
 
+    useEffect(() => {
+        if (!headerMenuOpen) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (headerMenuRef.current && !headerMenuRef.current.contains(event.target as Node)) {
+                setHeaderMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [headerMenuOpen]);
+
+    const handleMenuAction = (action: 'help' | 'settings' | 'profile' | 'logout') => {
+        setHeaderMenuOpen(false);
+        if (action === 'logout') {
+            handleLogout();
+            return;
+        }
+        console.info(`${action} clicked`);
+    };
+
     return (
         <div className="app-layout">
             <header className="top-bar">
@@ -43,7 +67,7 @@ function ChatLayout() {
                         onClick={() => setSidebarOpen(true)}
                         aria-label="Open sidebar"
                     >
-                        ?
+                        ☰
                     </button>
                     <span className="brand-logo">Whisprly</span>
                 </div>
@@ -52,9 +76,33 @@ function ChatLayout() {
                         <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
                         <span className="username">{username}</span>
                     </div>
-                    <button className="logout-btn" onClick={handleLogout}>
-                        Logout
-                    </button>
+                    <div className="header-menu" ref={headerMenuRef}>
+                        <button
+                            type="button"
+                            className="header-menu-btn"
+                            aria-label="Open overflow menu"
+                            aria-expanded={headerMenuOpen}
+                            onClick={() => setHeaderMenuOpen((prev) => !prev)}
+                        >
+                            ⋮
+                        </button>
+                        {headerMenuOpen && (
+                            <div className="header-menu-popover" role="menu" aria-label="Header actions">
+                                <button type="button" className="header-menu-item" onClick={() => handleMenuAction('help')}>
+                                    Help
+                                </button>
+                                <button type="button" className="header-menu-item" onClick={() => handleMenuAction('settings')}>
+                                    Settings
+                                </button>
+                                <button type="button" className="header-menu-item" onClick={() => handleMenuAction('profile')}>
+                                    Profile
+                                </button>
+                                <button type="button" className="header-menu-item header-menu-item--danger" onClick={() => handleMenuAction('logout')}>
+                                    Logout
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </header>
             <div className="app-body">

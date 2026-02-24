@@ -42,3 +42,7 @@ export async function joinRoom(roomId: string): Promise<Room> {
     const res = await httpClient.post<Room>(`/rooms/${roomId}/join`);
     return res.data;
 }
+
+export async function removeMember(roomId: string, userId: string): Promise<void> {
+    await httpClient.delete(`/rooms/${roomId}/members/${userId}`);
+}

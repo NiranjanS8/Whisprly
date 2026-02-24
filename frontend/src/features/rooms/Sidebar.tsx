@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useRoomStore } from './roomStore';
-import { fetchRooms, createRoom, joinRoom } from './roomApi';
+import { fetchRooms, createRoom, joinRoom, removeMember } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
@@ -50,6 +50,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [incomingRequests, setIncomingRequests] = useState<DmRequest[]>([]);
     const [loadingIncoming, setLoadingIncoming] = useState(false);
     const [search, setSearch] = useState('');
+    const [mutedRoomIds, setMutedRoomIds] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         fetchRooms().then(setRooms).catch(console.error);
@@ -188,11 +189,54 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         onClose();
     };
 
+    const handleRoomInfo = (room: Room) => {
+        setCopiedText(`${room.name} · ${room.memberCount} member${room.memberCount !== 1 ? 's' : ''}`);
+        setTimeout(() => setCopiedText(''), 1800);
+        setRoomMenuOpenId(null);
+    };
+
+    const handleToggleMute = (roomId: string) => {
+        const willMute = !mutedRoomIds[roomId];
+        setMutedRoomIds((prev) => ({ ...prev, [roomId]: willMute }));
+        setCopiedText(willMute ? 'Room muted' : 'Room unmuted');
+        setTimeout(() => setCopiedText(''), 1800);
+        setRoomMenuOpenId(null);
+    };
+
+    const handleLeaveRoom = async (roomId: string) => {
+        if (!userId) return;
+        try {
+            await removeMember(roomId, userId);
+            const nextRooms = rooms.filter((room) => room.id !== roomId);
+            setRooms(nextRooms);
+            if (activeRoomId === roomId) {
+                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].id : null);
+            }
+            setCopiedText('You left the room');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to leave room';
+            setCopiedText(msg);
+        } finally {
+            setTimeout(() => setCopiedText(''), 1800);
+            setRoomMenuOpenId(null);
+        }
+    };
+
+    const handleDeleteRoom = (room: Room) => {
+        if (room.createdById !== userId) {
+            setCopiedText('Only room owner can delete');
+        } else {
+            setCopiedText('Delete is not available yet');
+        }
+        setTimeout(() => setCopiedText(''), 1800);
+        setRoomMenuOpenId(null);
+    };
+
     return (
         <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
             <div className="sidebar-header">
                 <button className="sidebar-close" onClick={onClose} aria-label="Toggle sidebar">
-                    ?
+                    ☰
                 </button>
             </div>
 
@@ -248,12 +292,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 aria-label="Room actions"
                                 onClick={() => setRoomMenuOpenId((prev) => (prev === room.id ? null : room.id))}
                             >
-                                ?
+                                <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+                                    <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                                    <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+                                </svg>
                             </button>
                             {roomMenuOpenId === room.id && (
                                 <div className="room-menu">
                                     <button type="button" onClick={() => copyText(room.id, 'Room ID')}>
                                         Copy Room ID
+                                    </button>
+                                    <button type="button" onClick={() => handleRoomInfo(room)}>
+                                        Room Info
+                                    </button>
+                                    <button type="button" onClick={() => handleToggleMute(room.id)}>
+                                        {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
+                                    </button>
+                                    <button type="button" onClick={() => handleLeaveRoom(room.id)}>
+                                        Leave Room
+                                    </button>
+                                    <button type="button" className="room-menu-danger" onClick={() => handleDeleteRoom(room)}>
+                                        Delete
                                     </button>
                                 </div>
                             )}
