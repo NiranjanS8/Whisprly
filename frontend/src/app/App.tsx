@@ -8,33 +8,13 @@ import Sidebar from '../features/rooms/Sidebar';
 import ChatPanel from '../features/chat/ChatPanel';
 import ProfilePage from '../features/profile/ProfilePage';
 import { fetchMyProfile } from '../features/profile/profileApi';
+import { resolveMediaUrl } from '../shared/utils';
 import './App.css';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     if (!isAuthenticated) return <Navigate to="/login" replace />;
     return <>{children}</>;
-}
-
-function resolveAvatarUrl(raw: string | null): string | null {
-    if (!raw || !raw.trim()) return null;
-    const value = raw.trim();
-
-    if (
-        value.startsWith('data:image/') ||
-        value.startsWith('http://') ||
-        value.startsWith('https://') ||
-        value.startsWith('blob:')
-    ) {
-        return value;
-    }
-
-    if (value.startsWith('/')) {
-        const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:9090';
-        return `${backendOrigin}${value}`;
-    }
-
-    return value;
 }
 
 function ChatLayout() {
@@ -49,7 +29,7 @@ function ChatLayout() {
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
     const headerMenuRef = useRef<HTMLDivElement | null>(null);
-    const resolvedAvatarUrl = resolveAvatarUrl(avatarUrl);
+    const resolvedAvatarUrl = resolveMediaUrl(avatarUrl);
 
     useEffect(() => {
         if (accessToken) {

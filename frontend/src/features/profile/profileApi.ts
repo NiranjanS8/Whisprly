@@ -9,6 +9,13 @@ export interface UserProfile {
     avatarUrl: string | null;
 }
 
+export interface UserSummary {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+    online: boolean;
+}
+
 export interface UpdateUserProfileRequest {
     username?: string;
     email?: string;
@@ -24,5 +31,10 @@ export async function fetchMyProfile(): Promise<UserProfile> {
 
 export async function updateMyProfile(payload: UpdateUserProfileRequest): Promise<UserProfile> {
     const res = await httpClient.put<UserProfile>('/users/me', payload);
+    return res.data;
+}
+
+export async function fetchUserSummary(userId: string): Promise<UserSummary> {
+    const res = await httpClient.get<UserSummary>(`/users/${userId}/summary`);
     return res.data;
 }

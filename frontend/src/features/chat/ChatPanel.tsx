@@ -1,15 +1,37 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useRoomStore } from '../rooms/roomStore';
+import { fetchRoomMembers } from '../rooms/roomApi';
 import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { wsService } from './websocket';
 import { fetchMessages } from './messageApi';
-import { generateIdempotencyKey } from '../../shared/utils';
+import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
+import { fetchUserSummary } from '../profile/profileApi';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import './chat.css';
+
+interface DmParticipant {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+    online: boolean;
+}
+
+function getDmNameFallback(roomName: string, currentUsername: string | null): string {
+    const normalized = roomName?.trim() || 'Direct Message';
+    if (!currentUsername) return normalized;
+
+    const participants = normalized.split('&').map((part) => part.trim()).filter(Boolean);
+    if (participants.length === 2) {
+        const other = participants.find((part) => part.toLowerCase() !== currentUsername.toLowerCase());
+        if (other) return other;
+    }
+
+    return normalized;
+}
 
 export default function ChatPanel() {
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
@@ -23,13 +45,16 @@ export default function ChatPanel() {
     const failMessage = useChatStore((s) => s.failMessage);
 
     const [loading, setLoading] = useState(false);
+    const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
+
+    const isDmRoom = activeRoom?.type === 'DM';
+    const dmNameFallback = activeRoom ? getDmNameFallback(activeRoom.name, username) : 'Direct Message';
 
     const messages = useMemo(() => {
         if (!activeRoomId) return [];
         const msgs = messagesByRoom[activeRoomId] ?? [];
-        // Deduplicate by id, keep latest
         const seen = new Map<string, ChatMessage>();
         msgs.forEach((m) => {
             const key = m.id || m.idempotencyKey;
@@ -40,11 +65,9 @@ export default function ChatPanel() {
         );
     }, [activeRoomId, messagesByRoom]);
 
-    // Load history when room changes
     useEffect(() => {
         if (!activeRoomId) return;
 
-        // Subscribe first, then fetch (per FRONTEND_DESIGN §3.5)
         wsService.subscribeToRoom(activeRoomId);
 
         setLoading(true);
@@ -60,7 +83,49 @@ export default function ChatPanel() {
         };
     }, [activeRoomId, setHistoryMessages]);
 
-    // Auto-scroll to bottom on new messages
+    useEffect(() => {
+        if (!activeRoomId || !activeRoom || activeRoom.type !== 'DM' || !userId) {
+            setDmParticipant(null);
+            return;
+        }
+
+        let cancelled = false;
+        const loadParticipant = async () => {
+            try {
+                const members = await fetchRoomMembers(activeRoomId);
+                const otherMember = members.find((member) => member.userId !== userId);
+                if (!otherMember) {
+                    if (!cancelled) {
+                        setDmParticipant(null);
+                    }
+                    return;
+                }
+
+                const summary = await fetchUserSummary(otherMember.userId);
+                if (!cancelled) {
+                    setDmParticipant({
+                        id: summary.id,
+                        username: summary.username,
+                        avatarUrl: summary.avatarUrl,
+                        online: summary.online,
+                    });
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setDmParticipant(null);
+                }
+                console.error(error);
+            }
+        };
+
+        loadParticipant();
+        const interval = window.setInterval(loadParticipant, 15000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+        };
+    }, [activeRoomId, activeRoom, userId]);
+
     useEffect(() => {
         if (atBottom && messages.length > 0) {
             setTimeout(() => {
@@ -76,8 +141,6 @@ export default function ChatPanel() {
         if (!activeRoomId || !userId || !username) return;
 
         const idempotencyKey = generateIdempotencyKey();
-
-        // Optimistic append
         const optimisticMsg: ChatMessage = {
             idempotencyKey,
             content,
@@ -88,11 +151,8 @@ export default function ChatPanel() {
             status: 'sending',
         };
         appendMessage(activeRoomId, optimisticMsg);
-
-        // Send via WebSocket
         wsService.sendMessage(activeRoomId, content, idempotencyKey);
 
-        // Timeout: mark as failed if no confirmation in 5s
         setTimeout(() => {
             const msgs = useChatStore.getState().messagesByRoom[activeRoomId] ?? [];
             const msg = msgs.find((m) => m.idempotencyKey === idempotencyKey);
@@ -106,7 +166,7 @@ export default function ChatPanel() {
         return (
             <div className="chat-panel chat-panel--empty">
                 <div className="chat-empty-state">
-                    <div className="chat-empty-icon">💬</div>
+                    <div className="chat-empty-icon">...</div>
                     <h3>Welcome to Whisprly</h3>
                     <p>Select a room to start chatting</p>
                 </div>
@@ -114,24 +174,28 @@ export default function ChatPanel() {
         );
     }
 
+    const headerName = isDmRoom ? (dmParticipant?.username || dmNameFallback) : activeRoom.name;
+    const headerAvatar = isDmRoom ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null) : null;
+    const headerStatusText = isDmRoom ? (dmParticipant?.online ? 'Online' : 'Offline') : `${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
+
     return (
         <div className="chat-panel">
             <header className="chat-header">
-                <div className="chat-header__info">
-                    <h3 className="chat-header__name">{activeRoom.name}</h3>
-                    <span className="chat-header__meta">
-                        {activeRoom.memberCount} member{activeRoom.memberCount !== 1 ? 's' : ''}
-                    </span>
-                </div>
-                <div className={`connection-badge connection-badge--${connectionStatus}`}>
-                    <span className="connection-dot" />
-                    {connectionStatus === 'connected'
-                        ? 'Connected'
-                        : connectionStatus === 'reconnecting'
-                            ? 'Reconnecting...'
-                            : connectionStatus === 'connecting'
-                                ? 'Connecting...'
-                                : 'Disconnected'}
+                <div className="chat-header__identity">
+                    <div className="chat-header__avatar" aria-hidden="true">
+                        {headerAvatar ? (
+                            <img src={headerAvatar} alt="" />
+                        ) : (
+                            getInitials(headerName)
+                        )}
+                    </div>
+                    <div className="chat-header__info">
+                        <h3 className="chat-header__name">{headerName}</h3>
+                        <span className={`chat-header__meta ${isDmRoom ? 'chat-header__meta--presence' : ''}`}>
+                            {isDmRoom && <span className={`presence-dot ${dmParticipant?.online ? 'presence-dot--online' : 'presence-dot--offline'}`} />}
+                            {headerStatusText}
+                        </span>
+                    </div>
                 </div>
             </header>
 
@@ -155,13 +219,20 @@ export default function ChatPanel() {
                         initialTopMostItemIndex={Math.max(0, messages.length - 1)}
                         followOutput="smooth"
                         atBottomStateChange={setAtBottom}
-                        itemContent={(_, msg) => (
-                            <MessageBubble
-                                key={msg.id || msg.idempotencyKey}
-                                message={msg}
-                                isOwn={msg.senderId === userId}
-                            />
-                        )}
+                        itemContent={(index, msg) => {
+                            const prev = index > 0 ? messages[index - 1] : null;
+                            const showAvatar = !prev || prev.senderId !== msg.senderId;
+                            return (
+                                <MessageBubble
+                                    key={msg.id || msg.idempotencyKey}
+                                    message={msg}
+                                    isOwn={msg.senderId === userId}
+                                    showAvatar={showAvatar}
+                                    showSender={showAvatar}
+                                    avatarUrl={isDmRoom ? dmParticipant?.avatarUrl : undefined}
+                                />
+                            );
+                        }}
                     />
                 )}
             </div>

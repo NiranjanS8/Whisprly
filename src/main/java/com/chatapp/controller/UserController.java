@@ -2,9 +2,12 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.UpdateUserProfileRequest;
 import com.chatapp.dto.UserProfileResponse;
+import com.chatapp.dto.UserSummaryResponse;
 import com.chatapp.exception.DuplicateResourceException;
+import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
+import com.chatapp.service.PresenceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +25,7 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final PresenceService presenceService;
 
     @GetMapping("/search")
     public ResponseEntity<List<Map<String, Object>>> searchUsers(
@@ -45,6 +49,23 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> getCurrentUser(
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(toProfileResponse(currentUser));
+    }
+
+    @GetMapping("/{userId}/summary")
+    public ResponseEntity<UserSummaryResponse> getUserSummary(
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal User currentUser) {
+        User targetUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        UserSummaryResponse response = UserSummaryResponse.builder()
+                .id(targetUser.getId())
+                .username(targetUser.getUsername())
+                .avatarUrl(targetUser.getAvatarUrl())
+                .online(presenceService.isOnline(targetUser.getId()))
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/me")

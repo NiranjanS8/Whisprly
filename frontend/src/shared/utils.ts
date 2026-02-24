@@ -33,3 +33,24 @@ export function getInitials(name: string): string {
 export function classNames(...classes: (string | false | undefined | null)[]): string {
     return classes.filter(Boolean).join(' ');
 }
+
+export function resolveMediaUrl(raw: string | null): string | null {
+    if (!raw || !raw.trim()) return null;
+    const value = raw.trim();
+
+    if (
+        value.startsWith('data:image/') ||
+        value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('blob:')
+    ) {
+        return value;
+    }
+
+    if (value.startsWith('/')) {
+        const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN || 'http://localhost:9090';
+        return `${backendOrigin}${value}`;
+    }
+
+    return value;
+}
