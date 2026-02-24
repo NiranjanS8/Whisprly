@@ -14,3 +14,12 @@ WHERE max_members IS NULL;
 UPDATE chat_rooms
 SET allowed_media_types = 'text,image,video,file'
 WHERE allowed_media_types IS NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS full_name VARCHAR(100);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS bio VARCHAR(500);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT;

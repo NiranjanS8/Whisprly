@@ -8,6 +8,7 @@ export interface AuthState {
     username: string | null;
     isAuthenticated: boolean;
     setAuth: (data: { accessToken: string; refreshToken: string; userId: string; username: string }) => void;
+    setUsername: (username: string) => void;
     clearAuth: () => void;
 }
 
@@ -27,6 +28,11 @@ export const useAuthStore = create<AuthState>()(
                     userId: data.userId,
                     username: data.username,
                     isAuthenticated: true,
+                }),
+
+            setUsername: (username) =>
+                set({
+                    username,
                 }),
 
             clearAuth: () =>

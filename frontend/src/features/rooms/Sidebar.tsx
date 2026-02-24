@@ -234,12 +234,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     return (
         <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
-            <div className="sidebar-header">
-                <button className="sidebar-close" onClick={onClose} aria-label="Toggle sidebar">
-                    ☰
-                </button>
-            </div>
-
             <div className="sidebar-search-wrap">
                 <div className="sidebar-section-title">Rooms</div>
                 <div className="sidebar-search-field">

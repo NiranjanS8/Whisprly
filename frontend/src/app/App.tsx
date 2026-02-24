@@ -1,11 +1,12 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import { wsService } from '../features/chat/websocket';
 import LoginPage from '../features/auth/LoginPage';
 import RegisterPage from '../features/auth/RegisterPage';
 import Sidebar from '../features/rooms/Sidebar';
 import ChatPanel from '../features/chat/ChatPanel';
+import ProfilePage from '../features/profile/ProfilePage';
 import './App.css';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -15,6 +16,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function ChatLayout() {
+    const navigate = useNavigate();
     const accessToken = useAuthStore((s) => s.accessToken);
     const username = useAuthStore((s) => s.username);
     const clearAuth = useAuthStore((s) => s.clearAuth);
@@ -55,6 +57,10 @@ function ChatLayout() {
             handleLogout();
             return;
         }
+        if (action === 'profile') {
+            navigate('/profile');
+            return;
+        }
         console.info(`${action} clicked`);
     };
 
@@ -63,28 +69,25 @@ function ChatLayout() {
             <header className="top-bar">
                 <div className="top-bar-left">
                     <button
-                        className="mobile-menu-btn"
-                        onClick={() => setSidebarOpen(true)}
-                        aria-label="Open sidebar"
+                        className={`mobile-menu-btn ${sidebarOpen ? 'is-open' : ''}`}
+                        onClick={() => setSidebarOpen((prev) => !prev)}
+                        aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                        aria-expanded={sidebarOpen}
                     >
-                        ☰
+                        {sidebarOpen ? 'X' : '\u2630'}
                     </button>
                     <span className="brand-logo">Whisprly</span>
                 </div>
                 <div className="top-bar-right">
-                    <div className="user-info">
-                        <div className="user-avatar">{username ? username[0].toUpperCase() : '?'}</div>
-                        <span className="username">{username}</span>
-                    </div>
                     <div className="header-menu" ref={headerMenuRef}>
                         <button
                             type="button"
-                            className="header-menu-btn"
-                            aria-label="Open overflow menu"
+                            className="avatar-menu-btn"
+                            aria-label="Open profile menu"
                             aria-expanded={headerMenuOpen}
                             onClick={() => setHeaderMenuOpen((prev) => !prev)}
                         >
-                            ⋮
+                            <span className="user-avatar">{username ? username[0].toUpperCase() : '?'}</span>
                         </button>
                         {headerMenuOpen && (
                             <div className="header-menu-popover" role="menu" aria-label="Header actions">
@@ -129,9 +132,18 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute>
+                            <ProfilePage />
+                        </ProtectedRoute>
+                    }
+                />
                 <Route path="*" element={<Navigate to="/chat" replace />} />
             </Routes>
         </BrowserRouter>
     );
 }
+
 

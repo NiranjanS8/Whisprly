@@ -34,6 +34,15 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+
+    @Column(length = 500)
+    private String bio;
+
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
+    private String avatarUrl;
+
     @Column(nullable = false, length = 255)
     private String password;
 

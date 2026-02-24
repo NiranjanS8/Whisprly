@@ -1,7 +1,11 @@
 package com.chatapp.controller;
 
+import com.chatapp.dto.UpdateUserProfileRequest;
+import com.chatapp.dto.UserProfileResponse;
+import com.chatapp.exception.DuplicateResourceException;
 import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,10 +42,58 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> getCurrentUser(
+    public ResponseEntity<UserProfileResponse> getCurrentUser(
             @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(Map.of(
-                "id", currentUser.getId(),
-                "username", currentUser.getUsername()));
+        return ResponseEntity.ok(toProfileResponse(currentUser));
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<UserProfileResponse> updateCurrentUser(
+            @AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody UpdateUserProfileRequest request) {
+
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            String trimmedUsername = request.getUsername().trim();
+            if (!trimmedUsername.equals(currentUser.getUsername()) &&
+                    userRepository.existsByUsername(trimmedUsername)) {
+                throw new DuplicateResourceException("Username already taken");
+            }
+            currentUser.setUsername(trimmedUsername);
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String trimmedEmail = request.getEmail().trim();
+            if (!trimmedEmail.equalsIgnoreCase(currentUser.getEmail()) &&
+                    userRepository.existsByEmail(trimmedEmail)) {
+                throw new DuplicateResourceException("Email already registered");
+            }
+            currentUser.setEmail(trimmedEmail);
+        }
+
+        if (request.getFullName() != null) {
+            currentUser.setFullName(request.getFullName().isBlank() ? null : request.getFullName().trim());
+        }
+
+        if (request.getBio() != null) {
+            currentUser.setBio(request.getBio().isBlank() ? null : request.getBio().trim());
+        }
+
+        if (request.getAvatarUrl() != null) {
+            currentUser.setAvatarUrl(request.getAvatarUrl().isBlank() ? null : request.getAvatarUrl().trim());
+        }
+
+        User saved = userRepository.save(currentUser);
+        return ResponseEntity.ok(toProfileResponse(saved));
+    }
+
+    private UserProfileResponse toProfileResponse(User user) {
+        return UserProfileResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .bio(user.getBio())
+                .avatarUrl(user.getAvatarUrl())
+                .build();
     }
 }
