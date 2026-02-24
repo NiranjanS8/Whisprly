@@ -3,6 +3,8 @@ package com.chatapp.service;
 import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.ChatRoom;
+import com.chatapp.model.ChatRoomMember;
+import com.chatapp.model.MemberRole;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.repository.ChatRoomMemberRepository;
@@ -45,9 +47,12 @@ public class MessageService {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
 
-        // Verify sender is a member
-        if (!memberRepository.existsByRoomIdAndUserId(roomId, senderId)) {
-            throw new AccessDeniedException("You are not a member of this room");
+        ChatRoomMember senderMembership = memberRepository.findByRoomIdAndUserId(roomId, senderId)
+                .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
+
+        if (!Boolean.TRUE.equals(room.getMembersCanMessage())
+                && senderMembership.getRole() == MemberRole.MEMBER) {
+            throw new AccessDeniedException("Only moderators can send messages in this room");
         }
 
         // Load sender

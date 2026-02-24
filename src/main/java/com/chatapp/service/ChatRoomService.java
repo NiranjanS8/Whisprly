@@ -109,18 +109,31 @@ public class ChatRoomService {
         ChatRoomMember requester = memberRepository.findByRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
 
-        if (requester.getRole() != MemberRole.OWNER && requester.getRole() != MemberRole.ADMIN) {
-            throw new AccessDeniedException("Only OWNER or ADMIN can update room settings");
+        boolean isRoomOwner = room.getCreatedBy().getId().equals(userId);
+        if (!isRoomOwner && requester.getRole() != MemberRole.OWNER) {
+            throw new AccessDeniedException("Only OWNER can update room settings");
         }
 
         if (request.getName() != null && !request.getName().isBlank()) {
-            room.setName(request.getName());
+            room.setName(request.getName().trim());
+        }
+        if (request.getAvatarUrl() != null) {
+            room.setAvatarUrl(request.getAvatarUrl().isBlank() ? null : request.getAvatarUrl().trim());
+        }
+        if (request.getDescription() != null) {
+            room.setDescription(request.getDescription().isBlank() ? null : request.getDescription().trim());
         }
         if (request.getMaxMembers() != null) {
             room.setMaxMembers(request.getMaxMembers());
         }
         if (request.getAllowedMediaTypes() != null) {
             room.setAllowedMediaTypes(request.getAllowedMediaTypes());
+        }
+        if (request.getMembersCanMessage() != null) {
+            room.setMembersCanMessage(request.getMembersCanMessage());
+        }
+        if (request.getMembersCanAddMembers() != null) {
+            room.setMembersCanAddMembers(request.getMembersCanAddMembers());
         }
 
         room = chatRoomRepository.save(room);
@@ -169,11 +182,17 @@ public class ChatRoomService {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
 
+        if (room.getType() == RoomType.DM) {
+            throw new IllegalStateException("Cannot add members to a direct message room");
+        }
+
         ChatRoomMember requester = memberRepository.findByRoomIdAndUserId(roomId, requesterId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
 
         if (requester.getRole() != MemberRole.OWNER && requester.getRole() != MemberRole.ADMIN) {
-            throw new AccessDeniedException("Only OWNER or ADMIN can add members");
+            if (!Boolean.TRUE.equals(room.getMembersCanAddMembers())) {
+                throw new AccessDeniedException("Only OWNER or ADMIN can add members");
+            }
         }
 
         if (memberRepository.existsByRoomIdAndUserId(roomId, targetUserId)) {
@@ -197,6 +216,9 @@ public class ChatRoomService {
 
     @Transactional
     public void removeMember(UUID roomId, UUID targetUserId, UUID requesterId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
+
         ChatRoomMember requester = memberRepository.findByRoomIdAndUserId(roomId, requesterId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
 
@@ -210,8 +232,14 @@ public class ChatRoomService {
             throw new ResourceNotFoundException("Membership", "userId", targetUserId);
         }
 
+        if (room.getType() == RoomType.GROUP
+                && requester.getRole() == MemberRole.OWNER
+                && requesterId.equals(targetUserId)) {
+            throw new IllegalStateException("Transfer ownership before leaving the room");
+        }
+
         memberRepository.deleteByRoomIdAndUserId(roomId, targetUserId);
-        log.info("Member removed: roomId={}, userId={}, removedBy={}", roomId, targetUserId, requesterId);
+        log.info("Member removed: roomId={}, roomType={}, userId={}, removedBy={}", roomId, room.getType(), targetUserId, requesterId);
     }
 
     @Transactional
@@ -256,6 +284,7 @@ public class ChatRoomService {
                 .name(dmName)
                 .type(RoomType.DM)
                 .maxMembers(2)
+                .membersCanAddMembers(false)
                 .createdBy(currentUser)
                 .build();
         room = chatRoomRepository.save(room);
@@ -282,7 +311,44 @@ public class ChatRoomService {
                 .memberCount(memberCount)
                 .maxMembers(room.getMaxMembers())
                 .allowedMediaTypes(room.getAllowedMediaTypes())
+                .avatarUrl(room.getAvatarUrl())
+                .description(room.getDescription())
+                .membersCanMessage(room.getMembersCanMessage())
+                .membersCanAddMembers(room.getMembersCanAddMembers())
                 .build();
+    }
+
+    @Transactional
+    public ChatRoomResponse transferOwnership(UUID roomId, UUID newOwnerId, UUID requesterId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
+
+        ChatRoomMember requester = memberRepository.findByRoomIdAndUserId(roomId, requesterId)
+                .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
+
+        if (requester.getRole() != MemberRole.OWNER) {
+            throw new AccessDeniedException("Only room owner can transfer ownership");
+        }
+
+        ChatRoomMember newOwner = memberRepository.findByRoomIdAndUserId(roomId, newOwnerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Membership", "userId", newOwnerId));
+
+        if (newOwnerId.equals(requesterId)) {
+            throw new IllegalArgumentException("New owner must be a different member");
+        }
+
+        requester.setRole(MemberRole.ADMIN);
+        newOwner.setRole(MemberRole.OWNER);
+        room.setCreatedBy(newOwner.getUser());
+
+        memberRepository.save(requester);
+        memberRepository.save(newOwner);
+        room = chatRoomRepository.save(room);
+
+        int memberCount = memberRepository.findMembersWithUserByRoomId(roomId).size();
+        log.info("Ownership transferred: roomId={}, oldOwner={}, newOwner={}", roomId, requesterId, newOwnerId);
+
+        return toResponse(room, memberCount);
     }
 
     private MemberResponse toMemberResponse(ChatRoomMember member) {

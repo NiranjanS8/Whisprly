@@ -38,6 +38,20 @@ public class ChatRoom {
     @Builder.Default
     private String allowedMediaTypes = "text,image,video,file";
 
+    @Column(name = "avatar_url", length = 1000)
+    private String avatarUrl;
+
+    @Column(name = "room_description", length = 500)
+    private String description;
+
+    @Column(name = "members_can_message", nullable = false)
+    @Builder.Default
+    private Boolean membersCanMessage = true;
+
+    @Column(name = "members_can_add_members", nullable = false)
+    @Builder.Default
+    private Boolean membersCanAddMembers = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;

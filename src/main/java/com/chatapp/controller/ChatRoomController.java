@@ -5,6 +5,7 @@ import com.chatapp.dto.ChatRoomRequest;
 import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.MemberResponse;
 import com.chatapp.dto.RoomSettingsRequest;
+import com.chatapp.dto.TransferOwnershipRequest;
 import com.chatapp.model.User;
 import com.chatapp.service.ChatRoomService;
 import jakarta.validation.Valid;
@@ -98,6 +99,15 @@ public class ChatRoomController {
             @Valid @RequestBody RoomSettingsRequest request,
             @AuthenticationPrincipal User currentUser) {
         ChatRoomResponse response = chatRoomService.updateRoomSettings(roomId, request, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{roomId}/transfer-ownership")
+    public ResponseEntity<ChatRoomResponse> transferOwnership(
+            @PathVariable UUID roomId,
+            @Valid @RequestBody TransferOwnershipRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.transferOwnership(roomId, request.getNewOwnerUserId(), currentUser.getId());
         return ResponseEntity.ok(response);
     }
 

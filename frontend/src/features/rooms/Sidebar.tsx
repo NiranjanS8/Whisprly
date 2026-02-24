@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRoomStore } from './roomStore';
 import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
@@ -30,6 +31,7 @@ function formatRoomTimestamp(dateString: string): string {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+    const navigate = useNavigate();
     const { rooms, activeRoomId, setRooms, addRoom, setActiveRoom } = useRoomStore();
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
@@ -215,13 +217,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const selectRoom = (room: Room) => {
         setActiveRoom(room.id);
+        navigate('/chat');
         onClose();
     };
 
     const handleRoomInfo = (room: Room) => {
-        setCopiedText(`${room.name} · ${room.memberCount} member${room.memberCount !== 1 ? 's' : ''}`);
-        setTimeout(() => setCopiedText(''), 1800);
+        setActiveRoom(room.id);
+        navigate(`/chat/rooms/${room.id}/settings`);
         setRoomMenuOpenId(null);
+        onClose();
     };
 
     const handleToggleMute = (roomId: string) => {
@@ -342,7 +346,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                             Copy Room ID
                                         </button>
                                         <button type="button" onClick={() => handleRoomInfo(room)}>
-                                            Room Info
+                                            Room Settings
                                         </button>
                                         <button type="button" onClick={() => handleToggleMute(room.id)}>
                                             {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
@@ -409,7 +413,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         Copy Room ID
                                     </button>
                                     <button type="button" onClick={() => handleRoomInfo(room)}>
-                                        Room Info
+                                        Room Settings
                                     </button>
                                     <button type="button" onClick={() => handleToggleMute(room.id)}>
                                         {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
@@ -573,3 +577,4 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </aside>
     );
 }
+

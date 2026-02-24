@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import { wsService } from '../features/chat/websocket';
 import LoginPage from '../features/auth/LoginPage';
@@ -7,6 +7,7 @@ import RegisterPage from '../features/auth/RegisterPage';
 import Sidebar from '../features/rooms/Sidebar';
 import ChatPanel from '../features/chat/ChatPanel';
 import ProfilePage from '../features/profile/ProfilePage';
+import RoomSettingsPage from '../features/rooms/RoomSettingsPage';
 import { fetchMyProfile } from '../features/profile/profileApi';
 import { resolveMediaUrl } from '../shared/utils';
 import './App.css';
@@ -139,7 +140,7 @@ function ChatLayout() {
             <div className="app-body">
                 <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="main-content">
-                    <ChatPanel />
+                    <Outlet />
                 </main>
             </div>
         </div>
@@ -153,13 +154,16 @@ export default function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route
-                    path="/chat/*"
+                    path="/chat"
                     element={
                         <ProtectedRoute>
                             <ChatLayout />
                         </ProtectedRoute>
                     }
-                />
+                >
+                    <Route index element={<ChatPanel />} />
+                    <Route path="rooms/:roomId/settings" element={<RoomSettingsPage />} />
+                </Route>
                 <Route
                     path="/profile"
                     element={

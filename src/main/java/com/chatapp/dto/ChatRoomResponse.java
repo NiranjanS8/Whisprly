@@ -23,4 +23,8 @@ public class ChatRoomResponse {
     private int memberCount;
     private Integer maxMembers;
     private String allowedMediaTypes;
+    private String avatarUrl;
+    private String description;
+    private Boolean membersCanMessage;
+    private Boolean membersCanAddMembers;
 }
