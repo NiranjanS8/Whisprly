@@ -4,6 +4,7 @@ import com.chatapp.dto.AddMemberRequest;
 import com.chatapp.dto.ChatRoomRequest;
 import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.MemberResponse;
+import com.chatapp.dto.RoomSettingsRequest;
 import com.chatapp.model.User;
 import com.chatapp.service.ChatRoomService;
 import jakarta.validation.Valid;
@@ -27,7 +28,11 @@ public class ChatRoomController {
     public ResponseEntity<ChatRoomResponse> createRoom(
             @Valid @RequestBody ChatRoomRequest request,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.createRoom(request.getName(), currentUser.getId());
+        ChatRoomResponse response = chatRoomService.createRoom(
+                request.getName(),
+                currentUser.getId(),
+                request.getMaxMembers(),
+                request.getAllowedMediaTypes());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -69,5 +74,30 @@ public class ChatRoomController {
             @AuthenticationPrincipal User currentUser) {
         chatRoomService.removeMember(roomId, userId, currentUser.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{roomId}/join")
+    public ResponseEntity<ChatRoomResponse> joinRoom(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.joinRoom(roomId, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{roomId}/settings")
+    public ResponseEntity<ChatRoomResponse> updateRoomSettings(
+            @PathVariable UUID roomId,
+            @Valid @RequestBody RoomSettingsRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.updateRoomSettings(roomId, request, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/dm/{targetUserId}")
+    public ResponseEntity<ChatRoomResponse> startDm(
+            @PathVariable UUID targetUserId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.getOrCreateDmRoom(currentUser.getId(), targetUserId);
+        return ResponseEntity.ok(response);
     }
 }

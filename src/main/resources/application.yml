@@ -1,7 +1,10 @@
 server:
-  port: 9090
+  port: ${SERVER_PORT:9090}
 
 spring:
+  sql:
+    init:
+      mode: always
   datasource:
     url: jdbc:postgresql://localhost:5432/chatapp
     username: postgres
@@ -29,9 +32,13 @@ spring:
     default-property-inclusion: non_null
 
 app:
+  cors:
+    allowed-origin-patterns:
+      - http://localhost:*
+      - http://127.0.0.1:*
   jwt:
     secret: f8a3b7c1d9e2f0a4b6c8d1e3f5a7b9c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9f1
-    access-token-expiration-ms: 900000      # 15 minutes
+    access-token-expiration-ms: 86400000    # 24 hours (dev-friendly)
     refresh-token-expiration-ms: 604800000  # 7 days
 
 logging:

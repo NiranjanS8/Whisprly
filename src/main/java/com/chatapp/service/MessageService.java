@@ -83,6 +83,7 @@ public class MessageService {
     private ChatMessageResponse toResponse(Message message) {
         return ChatMessageResponse.builder()
                 .id(message.getId())
+                .idempotencyKey(message.getIdempotencyKey())
                 .roomId(message.getRoom().getId())
                 .senderId(message.getSender().getId())
                 .senderUsername(message.getSender().getUsername())

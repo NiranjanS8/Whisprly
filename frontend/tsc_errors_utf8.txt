@@ -1,0 +1,12 @@
+﻿src/features/chat/ChatPanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/features/chat/ChatPanel.tsx(2,20): error TS1484: 'VirtuosoHandle' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/ChatPanel.tsx(5,24): error TS1484: 'ChatMessage' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/messageApi.ts(2,10): error TS1484: 'ChatMessage' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/MessageBubble.tsx(2,10): error TS1484: 'ChatMessage' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/websocket.ts(1,18): error TS1484: 'IMessage' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/websocket.ts(1,28): error TS1484: 'StompSubscription' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/chat/websocket.ts(2,20): error TS7016: Could not find a declaration file for module 'sockjs-client'. 'C:/Users/Niranjan/Desktop/Chat_App/frontend/node_modules/sockjs-client/lib/entry.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/sockjs-client` if it exists or add a new declaration (.d.ts) file containing `declare module 'sockjs-client';`
+src/features/chat/websocket.ts(3,24): error TS1484: 'ChatMessage' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/rooms/roomStore.ts(2,10): error TS1484: 'Room' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/features/rooms/Sidebar.tsx(3,34): error TS1484: 'Room' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.

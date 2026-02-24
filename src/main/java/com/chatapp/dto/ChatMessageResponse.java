@@ -15,6 +15,7 @@ import java.util.UUID;
 public class ChatMessageResponse {
 
     private UUID id;
+    private UUID idempotencyKey;
     private UUID roomId;
     private UUID senderId;
     private String senderUsername;

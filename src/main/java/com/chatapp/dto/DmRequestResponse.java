@@ -12,15 +12,13 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatRoomResponse {
-
+public class DmRequestResponse {
     private UUID id;
-    private String name;
-    private String type;
-    private UUID createdById;
-    private String createdByUsername;
+    private UUID requesterId;
+    private String requesterUsername;
+    private UUID targetId;
+    private String targetUsername;
+    private String status;
     private Instant createdAt;
-    private int memberCount;
-    private Integer maxMembers;
-    private String allowedMediaTypes;
+    private Instant respondedAt;
 }

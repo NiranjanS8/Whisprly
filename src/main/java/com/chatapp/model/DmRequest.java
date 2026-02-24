@@ -11,38 +11,33 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "chat_rooms")
+@Table(name = "dm_requests")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatRoom {
+public class DmRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 100)
-    private String name;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    @Builder.Default
-    private RoomType type = RoomType.GROUP;
-
-    @Column(name = "max_members")
-    @Builder.Default
-    private Integer maxMembers = 100;
-
-    @Column(name = "allowed_media_types", length = 255)
-    @Builder.Default
-    private String allowedMediaTypes = "text,image,video,file";
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requester_id", nullable = false)
+    private User requester;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", nullable = false)
-    private User createdBy;
+    @JoinColumn(name = "target_id", nullable = false)
+    private User target;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private DmRequestStatus status;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(name = "responded_at")
+    private Instant respondedAt;
 }
