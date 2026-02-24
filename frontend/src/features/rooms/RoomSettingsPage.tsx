@@ -274,8 +274,16 @@ export default function RoomSettingsPage() {
     return (
         <section className="room-settings">
             <header className="room-settings__header">
-                <h2>Room Settings</h2>
-                <p>Manage members, permissions, and room configuration.</p>
+                <button type="button" className="room-settings__back-btn" onClick={() => navigate('/chat')}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 6L9 12L15 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="sr-only">Back to chat</span>
+                </button>
+                <div>
+                    <h2>Room Settings</h2>
+                    <p>Manage members, permissions, and room configuration.</p>
+                </div>
             </header>
 
             {(error || success) && (

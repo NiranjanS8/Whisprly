@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useRoomStore } from '../rooms/roomStore';
 import { fetchRoomMembers } from '../rooms/roomApi';
@@ -34,6 +35,7 @@ function getDmNameFallback(roomName: string, currentUsername: string | null): st
 }
 
 export default function ChatPanel() {
+    const navigate = useNavigate();
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
     const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.id === s.activeRoomId));
     const userId = useAuthStore((s) => s.userId);
@@ -46,6 +48,7 @@ export default function ChatPanel() {
 
     const [loading, setLoading] = useState(false);
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
+    const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
 
@@ -137,6 +140,10 @@ export default function ChatPanel() {
         }
     }, [messages.length, atBottom]);
 
+    useEffect(() => {
+        setHeaderMenuOpen(false);
+    }, [activeRoomId]);
+
     const handleSend = (content: string) => {
         if (!activeRoomId || !userId || !username) return;
 
@@ -196,6 +203,37 @@ export default function ChatPanel() {
                             {headerStatusText}
                         </span>
                     </div>
+                </div>
+                <div className="chat-header__actions">
+                    {!isDmRoom && (
+                        <div className="chat-header__menu-wrap">
+                            <button
+                                type="button"
+                                className="chat-header__menu-btn"
+                                aria-label="Chat actions"
+                                onClick={() => setHeaderMenuOpen((prev) => !prev)}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+                                    <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                                    <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+                                </svg>
+                            </button>
+                            {headerMenuOpen && (
+                                <div className="chat-header__menu">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setHeaderMenuOpen(false);
+                                            navigate(`/chat/rooms/${activeRoomId}/settings`);
+                                        }}
+                                    >
+                                        Room Settings
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </header>
 
