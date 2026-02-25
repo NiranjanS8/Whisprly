@@ -165,9 +165,20 @@
 
 .room-card__meta {
     margin-top: 2px;
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 12px;
     color: #8e98a5;
+}
+
+.room-card__online-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2ecc71;
+    box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.15);
+    flex-shrink: 0;
 }
 
 .room-card__actions {

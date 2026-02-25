@@ -265,8 +265,15 @@ export default function RoomSettingsPage() {
     if (!isOwner) {
         return (
             <div className="room-settings">
-                <div className="room-settings__status room-settings__status--error">Only the room owner can access room settings.</div>
-                <button type="button" className="room-settings__back-btn" onClick={() => navigate('/chat')}>Back to Chat</button>
+                <div className="room-settings__permission-shell">
+                    <div className="room-settings__permission-card">
+                        <h3>Restricted Settings</h3>
+                        <p>Only the room owner can modify room settings.</p>
+                        <button type="button" className="room-settings__permission-btn" onClick={() => navigate('/chat')}>
+                            Back to Chat
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }

@@ -108,6 +108,14 @@ class WebSocketService {
 
                 if (isOwnOptimistic) {
                     store.confirmMessage(roomId, chatMsg.idempotencyKey, chatMsg);
+                    // Simulate read/seen transition after server acknowledgement.
+                    window.setTimeout(() => {
+                        const current = useChatStore.getState().messagesByRoom[roomId] ?? [];
+                        const target = current.find((m) => m.idempotencyKey === chatMsg.idempotencyKey);
+                        if (target && target.status === 'sent') {
+                            useChatStore.getState().updateMessageStatus(roomId, chatMsg.idempotencyKey, 'read');
+                        }
+                    }, 900);
                 } else {
                     store.appendMessage(roomId, chatMsg);
                 }

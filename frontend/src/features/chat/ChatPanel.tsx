@@ -38,6 +38,7 @@ export default function ChatPanel() {
     const navigate = useNavigate();
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
     const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.id === s.activeRoomId));
+    const onlineCountsByRoom = useRoomStore((s) => s.onlineCountsByRoom);
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
     const connectionStatus = useChatStore((s) => s.connectionStatus);
@@ -182,7 +183,10 @@ export default function ChatPanel() {
 
     const headerName = isDmRoom ? (dmParticipant?.username || dmNameFallback) : activeRoom.name;
     const headerAvatar = isDmRoom ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null) : null;
-    const headerStatusText = isDmRoom ? (dmParticipant?.online ? 'Online' : 'Offline') : `${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
+    const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
+    const headerStatusText = isDmRoom
+        ? (dmParticipant?.online ? 'Online' : 'Offline')
+        : `${roomOnlineCount} online · ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
 
     return (
         <div className="chat-panel">

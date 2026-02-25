@@ -1,10 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRoomStore } from './roomStore';
-import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom } from './roomApi';
+import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
+import { fetchUserSummary, type UserSummary } from '../profile/profileApi';
 import { useAuthStore } from '../auth/authStore';
 import { getInitials } from '../../shared/utils';
 import './sidebar.css';
@@ -32,7 +33,7 @@ function formatRoomTimestamp(dateString: string): string {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const navigate = useNavigate();
-    const { rooms, activeRoomId, setRooms, addRoom, setActiveRoom } = useRoomStore();
+    const { rooms, activeRoomId, setRooms, addRoom, setActiveRoom, onlineCountsByRoom, setOnlineCountsByRoom } = useRoomStore();
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
 
@@ -68,6 +69,65 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             .catch(console.error)
             .finally(() => setLoadingIncoming(false));
     }, []);
+
+    useEffect(() => {
+        if (rooms.length === 0) {
+            setOnlineCountsByRoom({});
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadOnlineCounts = async () => {
+            try {
+                const memberLists = await Promise.all(
+                    rooms.map((room) =>
+                        fetchRoomMembers(room.id).catch((): Member[] => [])
+                    )
+                );
+
+                const uniqueUserIds = new Set<string>();
+                memberLists.forEach((members: Member[]) => {
+                    members.forEach((member: Member) => uniqueUserIds.add(member.userId));
+                });
+
+                const summaries = await Promise.all(
+                    Array.from(uniqueUserIds).map((id) =>
+                        fetchUserSummary(id).catch((): UserSummary | null => null)
+                    )
+                );
+
+                const userOnlineMap = new Map<string, boolean>();
+                summaries.forEach((summary: UserSummary | null) => {
+                    if (summary) userOnlineMap.set(summary.id, Boolean(summary.online));
+                });
+
+                const counts: Record<string, number> = {};
+                rooms.forEach((room, index) => {
+                    const members = memberLists[index] || [];
+                    counts[room.id] = members.reduce((total: number, member: Member) => {
+                        return total + (userOnlineMap.get(member.userId) ? 1 : 0);
+                    }, 0);
+                });
+
+                if (!cancelled) {
+                    setOnlineCountsByRoom(counts);
+                }
+            } catch {
+                if (!cancelled) {
+                    setOnlineCountsByRoom({});
+                }
+            }
+        };
+
+        loadOnlineCounts();
+        const interval = window.setInterval(loadOnlineCounts, 15000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+        };
+    }, [rooms, setOnlineCountsByRoom]);
 
     useEffect(() => {
         const handleDocClick = () => {
@@ -325,7 +385,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <span className="room-card__name">{getDirectMessageName(room)}</span>
                                     <span className="room-card__time">{formatRoomTimestamp(room.createdAt)}</span>
                                 </div>
-                                <span className="room-card__meta">Direct message</span>
+                                <span className="room-card__meta">
+                                    <span className="room-card__online-dot" aria-hidden="true" />
+                                    {onlineCountsByRoom[room.id] ?? 0} online
+                                </span>
                             </div>
                             <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>
                                 <button
@@ -391,7 +454,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 <span className="room-card__time">{formatRoomTimestamp(room.createdAt)}</span>
                             </div>
                             <span className="room-card__meta">
-                                {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
+                                <span className="room-card__online-dot" aria-hidden="true" />
+                                {onlineCountsByRoom[room.id] ?? 0} online · {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
                             </span>
                         </div>
                         <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>

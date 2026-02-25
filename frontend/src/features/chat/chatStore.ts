@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
-export type MessageStatus = 'sending' | 'sent' | 'failed';
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface ChatAttachment {
     fileName: string;
@@ -32,6 +32,7 @@ interface ChatState {
     appendMessage: (roomId: string, msg: ChatMessage) => void;
     confirmMessage: (roomId: string, idempotencyKey: string, serverMsg: ChatMessage) => void;
     failMessage: (roomId: string, idempotencyKey: string) => void;
+    updateMessageStatus: (roomId: string, idempotencyKey: string, status: MessageStatus) => void;
     setHistoryMessages: (roomId: string, msgs: ChatMessage[]) => void;
     setConnectionStatus: (s: ConnectionStatus) => void;
     setReconnectAttempt: (n: number) => void;
@@ -50,7 +51,9 @@ export const useChatStore = create<ChatState>((set) => ({
             const isDuplicate = existing.some(
                 (m) =>
                     (msg.id && m.id === msg.id) ||
-                    (msg.idempotencyKey && m.idempotencyKey === msg.idempotencyKey && m.status === 'sent')
+                    (msg.idempotencyKey
+                        && m.idempotencyKey === msg.idempotencyKey
+                        && (m.status === 'sent' || m.status === 'delivered' || m.status === 'read'))
             );
             if (isDuplicate) return state;
             return {
@@ -75,6 +78,19 @@ export const useChatStore = create<ChatState>((set) => ({
                 messagesByRoom: {
                     ...state.messagesByRoom,
                     [roomId]: found ? updated : [...existing, { ...serverMsg, status: 'sent' as const }],
+                },
+            };
+        }),
+
+    updateMessageStatus: (roomId, idempotencyKey, status) =>
+        set((state) => {
+            const existing = state.messagesByRoom[roomId] ?? [];
+            return {
+                messagesByRoom: {
+                    ...state.messagesByRoom,
+                    [roomId]: existing.map((m) =>
+                        m.idempotencyKey === idempotencyKey ? { ...m, status } : m
+                    ),
                 },
             };
         }),

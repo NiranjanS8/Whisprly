@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { ChatMessage } from './chatStore';
+import type { ChatMessage, MessageStatus } from './chatStore';
 import { formatTime, getInitials, normalizeApiPath, resolveMediaUrl } from '../../shared/utils';
 import httpClient from '../../shared/httpClient';
 
@@ -50,6 +50,45 @@ async function getOrLoadPreviewUrl(url: string): Promise<string> {
 
     previewBlobPromiseCache.set(url, request);
     return request;
+}
+
+function MessageStatusIndicator({ status }: { status: MessageStatus }) {
+    if (status === 'sending') {
+        return <span className="msg__status msg__status--sending" aria-label="Sending">○</span>;
+    }
+
+    if (status === 'sent') {
+        return (
+            <span className="msg__status msg__status--sent" aria-label="Sent">
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M3 8.5 6.2 11.5 13 4.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </span>
+        );
+    }
+
+    if (status === 'read') {
+        return (
+            <span className="msg__status msg__status--read" aria-label="Read">
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M1.8 9 4.6 11.7 8.5 7.8" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M6.7 9 9.5 11.7 14.2 7" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </span>
+        );
+    }
+
+    if (status === 'delivered') {
+        return (
+            <span className="msg__status msg__status--sent" aria-label="Delivered">
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M3 8.5 6.2 11.5 13 4.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </span>
+        );
+    }
+
+    return <span className="msg__status msg__status--failed" aria-label="Failed">!</span>;
 }
 
 const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAvatar, showSender, avatarUrl }: Props) {
@@ -205,11 +244,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
                         <span className="msg__time">
                             {formatTime(message.createdAt)}
                             {isOwn && (
-                                <span className={`msg__status msg__status--${message.status}`}>
-                                    {message.status === 'sending' && '...'}
-                                    {message.status === 'sent' && 'ok'}
-                                    {message.status === 'failed' && 'x'}
-                                </span>
+                                <MessageStatusIndicator status={message.status} />
                             )}
                         </span>
                     </div>
