@@ -130,17 +130,6 @@ export default function ChatPanel() {
     }, [activeRoomId, activeRoom, userId]);
 
     useEffect(() => {
-        if (atBottom && messages.length > 0) {
-            setTimeout(() => {
-                virtuosoRef.current?.scrollToIndex({
-                    index: messages.length - 1,
-                    behavior: 'smooth',
-                });
-            }, 50);
-        }
-    }, [messages.length, atBottom]);
-
-    useEffect(() => {
         setHeaderMenuOpen(false);
     }, [activeRoomId]);
 
@@ -264,8 +253,9 @@ export default function ChatPanel() {
                     <Virtuoso
                         ref={virtuosoRef}
                         data={messages}
+                        computeItemKey={(_, msg) => msg.id || msg.idempotencyKey}
                         initialTopMostItemIndex={Math.max(0, messages.length - 1)}
-                        followOutput="smooth"
+                        followOutput={atBottom ? 'smooth' : false}
                         atBottomStateChange={setAtBottom}
                         itemContent={(index, msg) => {
                             const prev = index > 0 ? messages[index - 1] : null;

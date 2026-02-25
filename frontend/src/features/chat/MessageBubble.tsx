@@ -11,30 +11,84 @@ interface Props {
     avatarUrl?: string | null;
 }
 
+const PREVIEW_CACHE_LIMIT = 120;
+const previewBlobUrlCache = new Map<string, string>();
+const previewBlobPromiseCache = new Map<string, Promise<string>>();
+
+function cachePreviewUrl(key: string, objectUrl: string) {
+    if (previewBlobUrlCache.has(key)) return;
+    previewBlobUrlCache.set(key, objectUrl);
+
+    if (previewBlobUrlCache.size > PREVIEW_CACHE_LIMIT) {
+        const oldestKey = previewBlobUrlCache.keys().next().value as string | undefined;
+        if (!oldestKey) return;
+        const oldestUrl = previewBlobUrlCache.get(oldestKey);
+        previewBlobUrlCache.delete(oldestKey);
+        if (oldestUrl) URL.revokeObjectURL(oldestUrl);
+    }
+}
+
+async function getOrLoadPreviewUrl(url: string): Promise<string> {
+    const cached = previewBlobUrlCache.get(url);
+    if (cached) return cached;
+
+    const pending = previewBlobPromiseCache.get(url);
+    if (pending) return pending;
+
+    const request = httpClient
+        .get<Blob>(url, { responseType: 'blob' })
+        .then((res) => {
+            const objectUrl = URL.createObjectURL(res.data);
+            cachePreviewUrl(url, objectUrl);
+            previewBlobPromiseCache.delete(url);
+            return objectUrl;
+        })
+        .catch((error) => {
+            previewBlobPromiseCache.delete(url);
+            throw error;
+        });
+
+    previewBlobPromiseCache.set(url, request);
+    return request;
+}
+
 const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAvatar, showSender, avatarUrl }: Props) {
     const resolvedAvatarUrl = resolveMediaUrl(avatarUrl ?? null);
     const attachment = message.attachment;
     const attachmentUrl = attachment ? normalizeApiPath(attachment.url) : '';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const isVisualPreview = attachment?.category === 'IMAGE' || attachment?.category === 'VIDEO';
+    const [imageViewerOpen, setImageViewerOpen] = useState(false);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const isImage = attachment?.category === 'IMAGE';
+    const isVideo = attachment?.category === 'VIDEO';
+    const isVisualPreview = isImage || isVideo;
 
     useEffect(() => {
         let active = true;
-        let localObjectUrl: string | null = null;
 
         const loadPreview = async () => {
             if (!attachment || !isVisualPreview) {
                 setPreviewUrl(null);
+                setPreviewLoading(false);
+                return;
+            }
+
+            const cached = previewBlobUrlCache.get(attachmentUrl);
+            if (cached) {
+                setPreviewUrl(cached);
+                setPreviewLoading(false);
                 return;
             }
 
             try {
-                const res = await httpClient.get<Blob>(attachmentUrl, { responseType: 'blob' });
+                setPreviewLoading(true);
+                const objectUrl = await getOrLoadPreviewUrl(attachmentUrl);
                 if (!active) return;
-                localObjectUrl = URL.createObjectURL(res.data);
-                setPreviewUrl(localObjectUrl);
+                setPreviewUrl(objectUrl);
             } catch {
                 if (active) setPreviewUrl(null);
+            } finally {
+                if (active) setPreviewLoading(false);
             }
         };
 
@@ -42,9 +96,28 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
 
         return () => {
             active = false;
-            if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
         };
-    }, [attachment, attachmentUrl, isVisualPreview]);
+    }, [attachmentUrl, isVisualPreview]);
+
+    useEffect(() => {
+        if (!imageViewerOpen) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setImageViewerOpen(false);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [imageViewerOpen]);
+
+    useEffect(() => {
+        if (!imageViewerOpen) return;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [imageViewerOpen]);
 
     const fetchAttachmentBlob = async () => {
         if (!attachment) return null;
@@ -76,61 +149,92 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
     };
 
     return (
-        <div className={`msg ${isOwn ? 'msg--own' : 'msg--other'} ${showAvatar ? '' : 'msg--stacked'}`}>
-            {!isOwn && showAvatar && (
-                <div className="msg__avatar" title={message.senderUsername}>
-                    {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${message.senderUsername} avatar`} /> : getInitials(message.senderUsername)}
-                </div>
-            )}
-            {!isOwn && !showAvatar && <div className="msg__avatar-spacer" aria-hidden="true" />}
-            <div className="msg__body">
-                {!isOwn && showSender && <span className="msg__sender">{message.senderUsername}</span>}
-                <div className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''}`}>
-                    {message.content && <p className="msg__content">{message.content}</p>}
-                    {attachment && (
-                        <div className="msg__attachment">
-                            {isVisualPreview && previewUrl && (
-                                <div className="msg__attachment-preview-shell">
-                                    {attachment.category === 'IMAGE' ? (
-                                        <img src={previewUrl} alt={attachment.fileName || 'Image attachment'} className="msg__attachment-preview msg__attachment-preview--image" />
-                                    ) : (
-                                        <video src={previewUrl} controls className="msg__attachment-preview msg__attachment-preview--video" />
-                                    )}
-                                </div>
-                            )}
-                            <div className={`msg__attachment-footer ${!isVisualPreview ? 'msg__attachment-footer--document' : ''}`}>
-                                {!isVisualPreview && (
-                                    <span className="msg__attachment-file-icon" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm7 1v5h5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                                        </svg>
-                                    </span>
+        <>
+            <div className={`msg ${isOwn ? 'msg--own' : 'msg--other'} ${showAvatar ? '' : 'msg--stacked'}`}>
+                {!isOwn && showAvatar && (
+                    <div className="msg__avatar" title={message.senderUsername}>
+                        {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${message.senderUsername} avatar`} /> : getInitials(message.senderUsername)}
+                    </div>
+                )}
+                {!isOwn && !showAvatar && <div className="msg__avatar-spacer" aria-hidden="true" />}
+                <div className="msg__body">
+                    {!isOwn && showSender && <span className="msg__sender">{message.senderUsername}</span>}
+                    <div className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''}`}>
+                        {message.content && <p className="msg__content">{message.content}</p>}
+                        {attachment && (
+                            <div className="msg__attachment">
+                                {isVisualPreview && previewUrl && (
+                                    <div className="msg__attachment-preview-shell">
+                                        {isImage ? (
+                                            <button
+                                                type="button"
+                                                className="msg__image-preview-btn"
+                                                onClick={() => setImageViewerOpen(true)}
+                                                aria-label={`Open image ${attachment.fileName}`}
+                                            >
+                                                <img src={previewUrl} alt={attachment.fileName || 'Image attachment'} className="msg__attachment-preview msg__attachment-preview--image" />
+                                            </button>
+                                        ) : (
+                                            <video src={previewUrl} controls className="msg__attachment-preview msg__attachment-preview--video" />
+                                        )}
+                                    </div>
                                 )}
-                                {attachment.fileName && <span className="msg__attachment-name">{attachment.fileName}</span>}
-                                <button
-                                    type="button"
-                                    className="msg__attachment-action"
-                                    onClick={isVisualPreview ? onOpenAttachment : onDownloadAttachment}
-                                    aria-label={`${isVisualPreview ? 'Open' : 'Download'} ${attachment.fileName}`}
-                                >
-                                    {isVisualPreview ? 'Open' : 'Download'}
-                                </button>
+                                {isVisualPreview && previewLoading && !previewUrl && (
+                                    <div className="msg__attachment-loading" aria-hidden="true" />
+                                )}
+                                <div className={`msg__attachment-footer ${!isVisualPreview ? 'msg__attachment-footer--document' : ''}`}>
+                                    {!isVisualPreview && (
+                                        <span className="msg__attachment-file-icon" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm7 1v5h5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                    {attachment.fileName && <span className="msg__attachment-name">{attachment.fileName}</span>}
+                                    <button
+                                        type="button"
+                                        className="msg__attachment-action"
+                                        onClick={isVideo ? onOpenAttachment : onDownloadAttachment}
+                                        aria-label={`${isVideo ? 'Open' : 'Download'} ${attachment.fileName}`}
+                                    >
+                                        {isVideo ? 'Open' : 'Download'}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    <span className="msg__time">
-                        {formatTime(message.createdAt)}
-                        {isOwn && (
-                            <span className={`msg__status msg__status--${message.status}`}>
-                                {message.status === 'sending' && '...'}
-                                {message.status === 'sent' && 'ok'}
-                                {message.status === 'failed' && 'x'}
-                            </span>
                         )}
-                    </span>
+                        <span className="msg__time">
+                            {formatTime(message.createdAt)}
+                            {isOwn && (
+                                <span className={`msg__status msg__status--${message.status}`}>
+                                    {message.status === 'sending' && '...'}
+                                    {message.status === 'sent' && 'ok'}
+                                    {message.status === 'failed' && 'x'}
+                                </span>
+                            )}
+                        </span>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            {isImage && previewUrl && imageViewerOpen && (
+                <div className="chat-image-viewer" onClick={() => setImageViewerOpen(false)} role="dialog" aria-modal="true" aria-label="Image preview">
+                    <button
+                        type="button"
+                        className="chat-image-viewer__back"
+                        onClick={() => setImageViewerOpen(false)}
+                        aria-label="Back"
+                    >
+                        Back
+                    </button>
+                    <img
+                        src={previewUrl}
+                        alt={attachment?.fileName || 'Image attachment'}
+                        className="chat-image-viewer__image"
+                        onClick={(event) => event.stopPropagation()}
+                    />
+                </div>
+            )}
+        </>
     );
 });
 
