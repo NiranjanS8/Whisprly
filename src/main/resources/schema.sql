@@ -43,3 +43,21 @@ ALTER TABLE users
 
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_original_name VARCHAR(255);
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_content_type VARCHAR(150);
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_size_bytes BIGINT;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_category VARCHAR(20);
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_storage_key VARCHAR(260);
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_url VARCHAR(1000);

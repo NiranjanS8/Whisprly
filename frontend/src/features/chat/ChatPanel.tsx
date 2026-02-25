@@ -7,7 +7,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { wsService } from './websocket';
-import { fetchMessages } from './messageApi';
+import { fetchMessages, uploadAttachmentMessage } from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
 import MessageBubble from './MessageBubble';
@@ -169,6 +169,16 @@ export default function ChatPanel() {
         }, 5000);
     };
 
+    const handleUploadAttachment = async (
+        file: File,
+        content?: string,
+        onProgress?: (progress: number) => void
+    ) => {
+        if (!activeRoomId) return;
+        const message = await uploadAttachmentMessage(activeRoomId, file, content, onProgress);
+        appendMessage(activeRoomId, message);
+    };
+
     if (!activeRoomId || !activeRoom) {
         return (
             <div className="chat-panel chat-panel--empty">
@@ -275,7 +285,11 @@ export default function ChatPanel() {
                 )}
             </div>
 
-            <ChatInput onSend={handleSend} disabled={connectionStatus !== 'connected'} />
+            <ChatInput
+                onSendText={handleSend}
+                onUploadAttachment={handleUploadAttachment}
+                disabled={connectionStatus !== 'connected'}
+            />
         </div>
     );
 }

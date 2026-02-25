@@ -19,5 +19,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     Optional<Message> findByIdempotencyKey(UUID idempotencyKey);
 
+    @Query("SELECT m FROM Message m JOIN FETCH m.sender JOIN FETCH m.room WHERE m.id = :messageId AND m.room.id = :roomId")
+    Optional<Message> findByIdAndRoomIdWithSender(@Param("messageId") UUID messageId, @Param("roomId") UUID roomId);
+
     void deleteByRoomId(UUID roomId);
 }

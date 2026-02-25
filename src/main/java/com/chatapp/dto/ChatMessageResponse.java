@@ -20,5 +20,6 @@ public class ChatMessageResponse {
     private UUID senderId;
     private String senderUsername;
     private String content;
+    private AttachmentResponse attachment;
     private Instant createdAt;
 }

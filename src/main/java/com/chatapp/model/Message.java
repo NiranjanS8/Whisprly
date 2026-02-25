@@ -35,6 +35,25 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "attachment_original_name", length = 255)
+    private String attachmentOriginalName;
+
+    @Column(name = "attachment_content_type", length = 150)
+    private String attachmentContentType;
+
+    @Column(name = "attachment_size_bytes")
+    private Long attachmentSizeBytes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "attachment_category", length = 20)
+    private AttachmentCategory attachmentCategory;
+
+    @Column(name = "attachment_storage_key", length = 260)
+    private String attachmentStorageKey;
+
+    @Column(name = "attachment_url", length = 1000)
+    private String attachmentUrl;
+
     @Column(name = "idempotency_key", unique = true)
     private UUID idempotencyKey;
 

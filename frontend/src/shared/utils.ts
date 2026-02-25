@@ -54,3 +54,27 @@ export function resolveMediaUrl(raw: string | null): string | null {
 
     return value;
 }
+
+export function normalizeApiPath(raw: string): string {
+    const value = (raw || '').trim();
+    if (!value) return value;
+
+    const stripApiPrefix = (path: string): string => {
+        if (path === '/api') return '/';
+        if (path.startsWith('/api/')) return path.substring(4);
+        if (path.startsWith('api/')) return `/${path.substring(4)}`;
+        if (!path.startsWith('/')) return `/${path}`;
+        return path;
+    };
+
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+        try {
+            const url = new URL(value);
+            return stripApiPrefix(`${url.pathname}${url.search}`);
+        } catch {
+            return value;
+        }
+    }
+
+    return stripApiPrefix(value);
+}

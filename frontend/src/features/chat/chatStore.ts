@@ -3,10 +3,20 @@ import { create } from 'zustand';
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 export type MessageStatus = 'sending' | 'sent' | 'failed';
 
+export interface ChatAttachment {
+    fileName: string;
+    contentType: string;
+    fileSizeBytes: number;
+    category: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT';
+    url: string;
+    inlinePreviewable: boolean;
+}
+
 export interface ChatMessage {
     id?: string;
     idempotencyKey: string;
     content: string;
+    attachment?: ChatAttachment;
     senderId: string;
     senderUsername: string;
     createdAt: string;

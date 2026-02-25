@@ -3,6 +3,7 @@ import type { IMessage, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
+import { normalizeApiPath } from '../../shared/utils';
 
 const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN;
 const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http://localhost:9090'}/ws`;
@@ -88,6 +89,9 @@ class WebSocketService {
                     id: body.id,
                     idempotencyKey: body.idempotencyKey ?? body.id,
                     content: body.content,
+                    attachment: body.attachment
+                        ? { ...body.attachment, url: normalizeApiPath(body.attachment.url) }
+                        : undefined,
                     senderId: body.senderId,
                     senderUsername: body.senderUsername,
                     createdAt: body.createdAt,
