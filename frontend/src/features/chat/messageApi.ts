@@ -22,6 +22,7 @@ interface MessageDto {
     } | null;
     senderId: string;
     senderUsername: string;
+    senderFullName?: string | null;
     createdAt: string;
     idempotencyKey?: string;
     roomId: string;
@@ -39,6 +40,7 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         attachment: normalizedAttachment,
         senderId: m.senderId,
         senderUsername: m.senderUsername,
+        senderFullName: m.senderFullName ?? null,
         createdAt: m.createdAt,
         roomId: m.roomId || roomId,
         status: 'sent',

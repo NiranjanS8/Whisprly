@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../auth/authStore';
-import { fetchMyProfile, updateMyProfile } from './profileApi';
+import { fetchMyProfile, fetchUserSummary, updateMyProfile } from './profileApi';
 import type { UserProfile } from './profileApi';
 import './profile.css';
 
@@ -45,13 +45,17 @@ async function createCroppedAvatarDataUrl(file: File): Promise<string> {
 
 export default function ProfilePage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const viewUserId = searchParams.get('userId');
     const setUsername = useAuthStore((s) => s.setUsername);
     const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
+    const myUserId = useAuthStore((s) => s.userId);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [readonlyProfile, setReadonlyProfile] = useState<{ id: string; username: string; fullName: string | null; avatarUrl: string | null; online: boolean } | null>(null);
     const [form, setForm] = useState<FormState>({
         username: '',
         email: '',
@@ -61,6 +65,32 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
+        if (viewUserId && viewUserId !== myUserId) {
+            let mounted = true;
+            setLoading(true);
+            fetchUserSummary(viewUserId)
+                .then((summary) => {
+                    if (!mounted) return;
+                    setReadonlyProfile({
+                        id: summary.id,
+                        username: summary.username,
+                        fullName: summary.fullName ?? null,
+                        avatarUrl: summary.avatarUrl,
+                        online: summary.online,
+                    });
+                })
+                .catch(() => {
+                    if (mounted) setError('Failed to load profile');
+                })
+                .finally(() => {
+                    if (mounted) setLoading(false);
+                });
+
+            return () => {
+                mounted = false;
+            };
+        }
+
         let mounted = true;
         fetchMyProfile()
             .then((profile) => {
@@ -84,7 +114,7 @@ export default function ProfilePage() {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [viewUserId, myUserId]);
 
     const displayName = useMemo(() => form.fullName.trim() || form.username.trim(), [form.fullName, form.username]);
 
@@ -156,6 +186,35 @@ export default function ProfilePage() {
         return (
             <div className="profile-page">
                 <div className="profile-card">Loading profile...</div>
+            </div>
+        );
+    }
+
+    if (readonlyProfile) {
+        return (
+            <div className="profile-page">
+                <div className="profile-card">
+                    <div className="profile-top">
+                        <button type="button" className="profile-back" onClick={() => navigate('/chat')}>
+                            Back
+                        </button>
+                        <h2>Profile</h2>
+                    </div>
+                    <div className="avatar-section">
+                        <div className="avatar-preview">
+                            {readonlyProfile.avatarUrl ? (
+                                <img src={readonlyProfile.avatarUrl} alt="Profile avatar" />
+                            ) : (
+                                <span>{getInitial(readonlyProfile.fullName || readonlyProfile.username)}</span>
+                            )}
+                        </div>
+                        <div className="avatar-actions">
+                            <p className="avatar-note">{readonlyProfile.fullName?.trim() || readonlyProfile.username}</p>
+                            <p className="avatar-note">@{readonlyProfile.username}</p>
+                            <p className="avatar-note">{readonlyProfile.online ? 'Online' : 'Offline'}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

@@ -10,6 +10,7 @@ import { wsService } from './websocket';
 import { fetchMessages, uploadAttachmentMessage } from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
+import { usePresenceStore } from '../presence/presenceStore';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import './chat.css';
@@ -17,8 +18,8 @@ import './chat.css';
 interface DmParticipant {
     id: string;
     username: string;
+    fullName: string | null;
     avatarUrl: string | null;
-    online: boolean;
 }
 
 function getDmNameFallback(roomName: string, currentUsername: string | null): string {
@@ -39,6 +40,7 @@ export default function ChatPanel() {
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
     const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.id === s.activeRoomId));
     const onlineCountsByRoom = useRoomStore((s) => s.onlineCountsByRoom);
+    const touchRoomActivity = useRoomStore((s) => s.touchRoomActivity);
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
     const connectionStatus = useChatStore((s) => s.connectionStatus);
@@ -46,6 +48,7 @@ export default function ChatPanel() {
     const appendMessage = useChatStore((s) => s.appendMessage);
     const setHistoryMessages = useChatStore((s) => s.setHistoryMessages);
     const failMessage = useChatStore((s) => s.failMessage);
+    const isUserOnline = usePresenceStore((s) => s.isUserOnline);
 
     const [loading, setLoading] = useState(false);
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
@@ -78,6 +81,15 @@ export default function ChatPanel() {
         fetchMessages(activeRoomId)
             .then((history) => {
                 setHistoryMessages(activeRoomId, history);
+                const latest = history.reduce<string | null>((latestAt, msg) => {
+                    if (!latestAt) return msg.createdAt;
+                    return new Date(msg.createdAt).getTime() > new Date(latestAt).getTime()
+                        ? msg.createdAt
+                        : latestAt;
+                }, null);
+                if (latest) {
+                    touchRoomActivity(activeRoomId, latest);
+                }
             })
             .catch(console.error)
             .finally(() => setLoading(false));
@@ -85,7 +97,7 @@ export default function ChatPanel() {
         return () => {
             wsService.unsubscribeFromRoom(activeRoomId);
         };
-    }, [activeRoomId, setHistoryMessages]);
+    }, [activeRoomId, setHistoryMessages, touchRoomActivity]);
 
     useEffect(() => {
         if (!activeRoomId || !activeRoom || activeRoom.type !== 'DM' || !userId) {
@@ -110,8 +122,8 @@ export default function ChatPanel() {
                     setDmParticipant({
                         id: summary.id,
                         username: summary.username,
+                        fullName: summary.fullName ?? null,
                         avatarUrl: summary.avatarUrl,
-                        online: summary.online,
                     });
                 }
             } catch (error) {
@@ -123,10 +135,8 @@ export default function ChatPanel() {
         };
 
         loadParticipant();
-        const interval = window.setInterval(loadParticipant, 15000);
         return () => {
             cancelled = true;
-            window.clearInterval(interval);
         };
     }, [activeRoomId, activeRoom, userId]);
 
@@ -148,6 +158,7 @@ export default function ChatPanel() {
             status: 'sending',
         };
         appendMessage(activeRoomId, optimisticMsg);
+        touchRoomActivity(activeRoomId, optimisticMsg.createdAt);
         wsService.sendMessage(activeRoomId, content, idempotencyKey);
 
         setTimeout(() => {
@@ -167,6 +178,7 @@ export default function ChatPanel() {
         if (!activeRoomId) return;
         const message = await uploadAttachmentMessage(activeRoomId, file, content, onProgress);
         appendMessage(activeRoomId, message);
+        touchRoomActivity(activeRoomId, message.createdAt);
     };
 
     if (!activeRoomId || !activeRoom) {
@@ -181,12 +193,13 @@ export default function ChatPanel() {
         );
     }
 
-    const headerName = isDmRoom ? (dmParticipant?.username || dmNameFallback) : activeRoom.name;
+    const headerName = isDmRoom ? (dmParticipant?.fullName?.trim() || dmParticipant?.username || dmNameFallback) : activeRoom.name;
     const headerAvatar = isDmRoom ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null) : null;
+    const dmOnline = isUserOnline(dmParticipant?.id);
     const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
     const headerStatusText = isDmRoom
-        ? (dmParticipant?.online ? 'Online' : 'Offline')
-        : `${roomOnlineCount} online · ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
+        ? (dmOnline ? 'Online' : 'Offline')
+        : `${roomOnlineCount} online Â· ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
 
     return (
         <div className="chat-panel">
@@ -202,7 +215,7 @@ export default function ChatPanel() {
                     <div className="chat-header__info">
                         <h3 className="chat-header__name">{headerName}</h3>
                         <span className={`chat-header__meta ${isDmRoom ? 'chat-header__meta--presence' : ''}`}>
-                            {isDmRoom && <span className={`presence-dot ${dmParticipant?.online ? 'presence-dot--online' : 'presence-dot--offline'}`} />}
+                            {isDmRoom && <span className={`presence-dot ${dmOnline ? 'presence-dot--online' : 'presence-dot--offline'}`} />}
                             {headerStatusText}
                         </span>
                     </div>
@@ -287,3 +300,4 @@ export default function ChatPanel() {
         </div>
     );
 }
+

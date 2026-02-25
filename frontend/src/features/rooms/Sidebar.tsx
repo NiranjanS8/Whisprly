@@ -7,6 +7,10 @@ import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
 import { fetchUserSummary, type UserSummary } from '../profile/profileApi';
 import { useAuthStore } from '../auth/authStore';
+import { useChatStore } from '../chat/chatStore';
+import { fetchMessages } from '../chat/messageApi';
+import { wsService } from '../chat/websocket';
+import { usePresenceStore } from '../presence/presenceStore';
 import { getInitials } from '../../shared/utils';
 import './sidebar.css';
 
@@ -17,25 +21,129 @@ interface SidebarProps {
 
 type ComposerMode = 'none' | 'create' | 'join' | 'chat';
 
+interface DmConversationMenuProps {
+    room: Room;
+    muted: boolean;
+    blocked: boolean;
+    onViewProfile: (room: Room) => Promise<void>;
+    onToggleMute: (roomId: string) => void;
+    onClearChat: (roomId: string) => void;
+    onToggleBlockUser: (room: Room) => Promise<void>;
+}
+
+function DmConversationMenu({
+    room,
+    muted,
+    blocked,
+    onViewProfile,
+    onToggleMute,
+    onClearChat,
+    onToggleBlockUser,
+}: DmConversationMenuProps) {
+    return (
+        <div className="room-menu">
+            <button type="button" onClick={() => onViewProfile(room)}>
+                View Profile
+            </button>
+            <button type="button" onClick={() => onToggleMute(room.id)}>
+                {muted ? 'Unmute Conversation' : 'Mute Conversation'}
+            </button>
+            <button type="button" onClick={() => onClearChat(room.id)}>
+                Clear Chat
+            </button>
+            <button type="button" className="room-menu-danger" onClick={() => onToggleBlockUser(room)}>
+                {blocked ? 'Unblock User' : 'Block User'}
+            </button>
+        </div>
+    );
+}
+
+interface RoomConversationMenuProps {
+    room: Room;
+    muted: boolean;
+    onCopyRoomId: (roomId: string) => Promise<void>;
+    onRoomInfo: (room: Room) => void;
+    onToggleMute: (roomId: string) => void;
+    onLeaveRoom: (roomId: string) => Promise<void>;
+    onDeleteRoom: (room: Room) => Promise<void>;
+}
+
+function RoomConversationMenu({
+    room,
+    muted,
+    onCopyRoomId,
+    onRoomInfo,
+    onToggleMute,
+    onLeaveRoom,
+    onDeleteRoom,
+}: RoomConversationMenuProps) {
+    return (
+        <div className="room-menu">
+            <button type="button" onClick={() => onCopyRoomId(room.id)}>
+                Copy Room ID
+            </button>
+            <button type="button" onClick={() => onRoomInfo(room)}>
+                Room Settings
+            </button>
+            <button type="button" onClick={() => onToggleMute(room.id)}>
+                {muted ? 'Unmute' : 'Mute'}
+            </button>
+            <button type="button" onClick={() => onLeaveRoom(room.id)}>
+                Leave Room
+            </button>
+            <button type="button" className="room-menu-danger" onClick={() => onDeleteRoom(room)}>
+                Delete
+            </button>
+        </div>
+    );
+}
+
 function formatRoomTimestamp(dateString: string): string {
     if (!dateString) return '';
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return '';
     const now = new Date();
-    const sameDay = date.toDateString() === now.toDateString();
-
-    if (sameDay) {
-        return new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).format(date);
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 60_000) return 'now';
+    if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m`;
+    if (diffMs < 86_400_000 && date.toDateString() === now.toDateString()) {
+        return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(date);
     }
 
-    return new Intl.DateTimeFormat([], { month: 'short', day: 'numeric' }).format(date);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+    }
+
+    if (diffMs < 604_800_000) {
+        return new Intl.DateTimeFormat([], { weekday: 'short' }).format(date);
+    }
+
+    const isSameYear = date.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat([], isSameYear
+        ? { month: 'short', day: 'numeric' }
+        : { month: 'short', day: 'numeric', year: 'numeric' }
+    ).format(date);
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const navigate = useNavigate();
-    const { rooms, activeRoomId, setRooms, addRoom, setActiveRoom, onlineCountsByRoom, setOnlineCountsByRoom } = useRoomStore();
+    const {
+        rooms,
+        activeRoomId,
+        setRooms,
+        addRoom,
+        setActiveRoom,
+        onlineCountsByRoom,
+        setOnlineCountsByRoom,
+        lastActivityByRoom,
+        setLastActivityByRoom,
+    } = useRoomStore();
+    const clearRoomMessages = useChatStore((s) => s.clearRoom);
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
+    const onlineByUserId = usePresenceStore((s) => s.onlineByUserId);
 
     const [composerMode, setComposerMode] = useState<ComposerMode>('none');
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -57,10 +165,72 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [loadingIncoming, setLoadingIncoming] = useState(false);
     const [search, setSearch] = useState('');
     const [mutedRoomIds, setMutedRoomIds] = useState<Record<string, boolean>>({});
+    const [blockedDmRoomIds, setBlockedDmRoomIds] = useState<Record<string, boolean>>({});
+    const [dmDisplayNameByRoom, setDmDisplayNameByRoom] = useState<Record<string, string>>({});
+    const [roomMemberIdsByRoom, setRoomMemberIdsByRoom] = useState<Record<string, string[]>>({});
 
     useEffect(() => {
         fetchRooms().then(setRooms).catch(console.error);
     }, [setRooms]);
+
+    useEffect(() => {
+        if (rooms.length === 0) {
+            setLastActivityByRoom({});
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadLastActivity = async () => {
+            const nextActivity: Record<string, string> = {};
+            rooms.forEach((room) => {
+                nextActivity[room.id] = room.createdAt;
+            });
+
+            const latestMessages = await Promise.all(
+                rooms.map((room) => fetchMessages(room.id, 0, 20).catch(() => []))
+            );
+
+            for (let index = 0; index < rooms.length; index++) {
+                const room = rooms[index];
+                const latestForRoom = (latestMessages[index] ?? []).reduce<string | null>((latestAt, msg) => {
+                    if (!latestAt) return msg.createdAt;
+                    return new Date(msg.createdAt).getTime() > new Date(latestAt).getTime()
+                        ? msg.createdAt
+                        : latestAt;
+                }, null);
+                if (latestForRoom) {
+                    nextActivity[room.id] = latestForRoom;
+                }
+            }
+
+            if (!cancelled) {
+                const current = useRoomStore.getState().lastActivityByRoom;
+                const merged: Record<string, string> = { ...nextActivity };
+                Object.entries(current).forEach(([roomId, currentValue]) => {
+                    if (!(roomId in merged)) return;
+                    const mergedValue = merged[roomId];
+                    if (new Date(currentValue).getTime() > new Date(mergedValue).getTime()) {
+                        merged[roomId] = currentValue;
+                    }
+                });
+                setLastActivityByRoom(merged);
+            }
+        };
+
+        loadLastActivity().catch(console.error);
+        return () => {
+            cancelled = true;
+        };
+    }, [rooms, setLastActivityByRoom]);
+
+    useEffect(() => {
+        if (rooms.length === 0) return;
+        rooms.forEach((room) => wsService.subscribeToRoom(room.id));
+        return () => {
+            rooms.forEach((room) => wsService.unsubscribeFromRoom(room.id));
+        };
+    }, [rooms]);
 
     useEffect(() => {
         setLoadingIncoming(true);
@@ -72,62 +242,64 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     useEffect(() => {
         if (rooms.length === 0) {
+            setRoomMemberIdsByRoom({});
+            setDmDisplayNameByRoom({});
             setOnlineCountsByRoom({});
             return;
         }
 
         let cancelled = false;
 
-        const loadOnlineCounts = async () => {
+        const loadRoomMembers = async () => {
             try {
                 const memberLists = await Promise.all(
-                    rooms.map((room) =>
-                        fetchRoomMembers(room.id).catch((): Member[] => [])
-                    )
+                    rooms.map((room) => fetchRoomMembers(room.id).catch((): Member[] => []))
                 );
 
-                const uniqueUserIds = new Set<string>();
-                memberLists.forEach((members: Member[]) => {
-                    members.forEach((member: Member) => uniqueUserIds.add(member.userId));
-                });
+                const memberIdsByRoom: Record<string, string[]> = {};
+                const dmNames: Record<string, string> = {};
 
-                const summaries = await Promise.all(
-                    Array.from(uniqueUserIds).map((id) =>
-                        fetchUserSummary(id).catch((): UserSummary | null => null)
-                    )
-                );
-
-                const userOnlineMap = new Map<string, boolean>();
-                summaries.forEach((summary: UserSummary | null) => {
-                    if (summary) userOnlineMap.set(summary.id, Boolean(summary.online));
-                });
-
-                const counts: Record<string, number> = {};
-                rooms.forEach((room, index) => {
+                for (let index = 0; index < rooms.length; index++) {
+                    const room = rooms[index];
                     const members = memberLists[index] || [];
-                    counts[room.id] = members.reduce((total: number, member: Member) => {
-                        return total + (userOnlineMap.get(member.userId) ? 1 : 0);
-                    }, 0);
-                });
+                    memberIdsByRoom[room.id] = members.map((member) => member.userId);
+
+                    if (room.type === 'DM' && userId) {
+                        const otherMember = members.find((member) => member.userId !== userId);
+                        if (otherMember) {
+                            const summary = await fetchUserSummary(otherMember.userId).catch((): UserSummary | null => null);
+                            if (summary) {
+                                dmNames[room.id] = summary.fullName?.trim() || summary.username;
+                            }
+                        }
+                    }
+                }
 
                 if (!cancelled) {
-                    setOnlineCountsByRoom(counts);
+                    setRoomMemberIdsByRoom(memberIdsByRoom);
+                    setDmDisplayNameByRoom(dmNames);
                 }
             } catch {
                 if (!cancelled) {
-                    setOnlineCountsByRoom({});
+                    setRoomMemberIdsByRoom({});
+                    setDmDisplayNameByRoom({});
                 }
             }
         };
 
-        loadOnlineCounts();
-        const interval = window.setInterval(loadOnlineCounts, 15000);
-
+        loadRoomMembers();
         return () => {
             cancelled = true;
-            window.clearInterval(interval);
         };
-    }, [rooms, setOnlineCountsByRoom]);
+    }, [rooms, userId, setOnlineCountsByRoom]);
+
+    useEffect(() => {
+        const counts: Record<string, number> = {};
+        Object.entries(roomMemberIdsByRoom).forEach(([roomId, memberIds]) => {
+            counts[roomId] = memberIds.reduce((total, memberId) => total + (onlineByUserId[memberId] ? 1 : 0), 0);
+        });
+        setOnlineCountsByRoom(counts);
+    }, [roomMemberIdsByRoom, onlineByUserId, setOnlineCountsByRoom]);
 
     useEffect(() => {
         const handleDocClick = () => {
@@ -141,7 +313,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const normalizedSearch = search.trim().toLowerCase();
 
+    const getRoomActivityAt = (room: Room): string => lastActivityByRoom[room.id] ?? room.createdAt;
+    const byRecentActivity = (a: Room, b: Room): number =>
+        new Date(getRoomActivityAt(b)).getTime() - new Date(getRoomActivityAt(a)).getTime();
+
     const getDirectMessageName = (room: Room): string => {
+        const knownDisplayName = dmDisplayNameByRoom[room.id];
+        if (knownDisplayName && knownDisplayName.trim()) return knownDisplayName;
+
         const roomName = room.name?.trim() || 'Direct Message';
         if (!username) return roomName;
 
@@ -161,11 +340,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const directMessages = rooms
         .filter((room) => room.type === 'DM')
-        .filter(matchesSearch);
+        .filter(matchesSearch)
+        .sort(byRecentActivity);
 
     const groupRooms = rooms
         .filter((room) => room.type !== 'DM')
-        .filter(matchesSearch);
+        .filter(matchesSearch)
+        .sort(byRecentActivity);
+
+    const isDmPeerOnline = (room: Room): boolean => {
+        const onlineCount = onlineCountsByRoom[room.id] ?? 0;
+        return onlineCount > 1;
+    };
 
     const copyText = async (value: string, label: string) => {
         try {
@@ -296,6 +482,68 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         setRoomMenuOpenId(null);
     };
 
+    const getDmParticipantSummary = async (room: Room): Promise<UserSummary | null> => {
+        if (!userId) return null;
+        const members = await fetchRoomMembers(room.id);
+        const other = members.find((member) => member.userId !== userId);
+        if (!other) return null;
+        return fetchUserSummary(other.userId);
+    };
+
+    const handleViewDmProfile = async (room: Room) => {
+        try {
+            const summary = await getDmParticipantSummary(room);
+            if (!summary) {
+                setCopiedText('Participant profile not available');
+                setTimeout(() => setCopiedText(''), 1800);
+                return;
+            }
+            navigate(`/profile?userId=${summary.id}`);
+            onClose();
+        } catch {
+            setCopiedText('Failed to open profile');
+            setTimeout(() => setCopiedText(''), 1800);
+        } finally {
+            setRoomMenuOpenId(null);
+        }
+    };
+
+    const handleToggleDmMute = (roomId: string) => {
+        const willMute = !mutedRoomIds[roomId];
+        setMutedRoomIds((prev) => ({ ...prev, [roomId]: willMute }));
+        setCopiedText(willMute ? 'Conversation muted' : 'Conversation unmuted');
+        setTimeout(() => setCopiedText(''), 1800);
+        setRoomMenuOpenId(null);
+    };
+
+    const handleClearDmChat = (roomId: string) => {
+        clearRoomMessages(roomId);
+        setCopiedText('Chat cleared');
+        setTimeout(() => setCopiedText(''), 1800);
+        setRoomMenuOpenId(null);
+    };
+
+    const handleToggleBlockDmUser = async (room: Room) => {
+        try {
+            const summary = await getDmParticipantSummary(room);
+            if (!summary) {
+                setCopiedText('Participant not found');
+                setTimeout(() => setCopiedText(''), 1800);
+                return;
+            }
+            const willBlock = !blockedDmRoomIds[room.id];
+            setBlockedDmRoomIds((prev) => ({ ...prev, [room.id]: willBlock }));
+            const displayName = summary.fullName?.trim() || summary.username;
+            setCopiedText(willBlock ? `${displayName} blocked` : `${displayName} unblocked`);
+            setTimeout(() => setCopiedText(''), 1800);
+        } catch {
+            setCopiedText('Failed to update block state');
+            setTimeout(() => setCopiedText(''), 1800);
+        } finally {
+            setRoomMenuOpenId(null);
+        }
+    };
+
     const handleLeaveRoom = async (roomId: string) => {
         if (!userId) return;
         try {
@@ -383,11 +631,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div className="room-card__content">
                                 <div className="room-card__toprow">
                                     <span className="room-card__name">{getDirectMessageName(room)}</span>
-                                    <span className="room-card__time">{formatRoomTimestamp(room.createdAt)}</span>
+                                    <span className="room-card__time">{formatRoomTimestamp(getRoomActivityAt(room))}</span>
                                 </div>
                                 <span className="room-card__meta">
-                                    <span className="room-card__online-dot" aria-hidden="true" />
-                                    {onlineCountsByRoom[room.id] ?? 0} online
+                                    <span className={`room-card__online-dot ${isDmPeerOnline(room) ? 'room-card__online-dot--online' : 'room-card__online-dot--offline'}`} aria-hidden="true" />
+                                    {isDmPeerOnline(room) ? 'Online' : 'Offline'}
                                 </span>
                             </div>
                             <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>
@@ -404,23 +652,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     </svg>
                                 </button>
                                 {roomMenuOpenId === room.id && (
-                                    <div className="room-menu">
-                                        <button type="button" onClick={() => copyText(room.id, 'Room ID')}>
-                                            Copy Room ID
-                                        </button>
-                                        <button type="button" onClick={() => handleRoomInfo(room)}>
-                                            Room Settings
-                                        </button>
-                                        <button type="button" onClick={() => handleToggleMute(room.id)}>
-                                            {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
-                                        </button>
-                                        <button type="button" onClick={() => handleLeaveRoom(room.id)}>
-                                            Leave Room
-                                        </button>
-                                        <button type="button" className="room-menu-danger" onClick={() => handleDeleteRoom(room)}>
-                                            Delete
-                                        </button>
-                                    </div>
+                                    <DmConversationMenu
+                                        room={room}
+                                        muted={Boolean(mutedRoomIds[room.id])}
+                                        blocked={Boolean(blockedDmRoomIds[room.id])}
+                                        onViewProfile={handleViewDmProfile}
+                                        onToggleMute={handleToggleDmMute}
+                                        onClearChat={handleClearDmChat}
+                                        onToggleBlockUser={handleToggleBlockDmUser}
+                                    />
                                 )}
                             </div>
                         </div>
@@ -451,11 +691,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <div className="room-card__content">
                             <div className="room-card__toprow">
                                 <span className="room-card__name">{room.name}</span>
-                                <span className="room-card__time">{formatRoomTimestamp(room.createdAt)}</span>
+                                <span className="room-card__time">{formatRoomTimestamp(getRoomActivityAt(room))}</span>
                             </div>
                             <span className="room-card__meta">
-                                <span className="room-card__online-dot" aria-hidden="true" />
-                                {onlineCountsByRoom[room.id] ?? 0} online · {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
+                                <span className="room-card__online-dot room-card__online-dot--online" aria-hidden="true" />
+                                {onlineCountsByRoom[room.id] ?? 0} online - {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
                             </span>
                         </div>
                         <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>
@@ -472,23 +712,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 </svg>
                             </button>
                             {roomMenuOpenId === room.id && (
-                                <div className="room-menu">
-                                    <button type="button" onClick={() => copyText(room.id, 'Room ID')}>
-                                        Copy Room ID
-                                    </button>
-                                    <button type="button" onClick={() => handleRoomInfo(room)}>
-                                        Room Settings
-                                    </button>
-                                    <button type="button" onClick={() => handleToggleMute(room.id)}>
-                                        {mutedRoomIds[room.id] ? 'Unmute' : 'Mute'}
-                                    </button>
-                                    <button type="button" onClick={() => handleLeaveRoom(room.id)}>
-                                        Leave Room
-                                    </button>
-                                    <button type="button" className="room-menu-danger" onClick={() => handleDeleteRoom(room)}>
-                                        Delete
-                                    </button>
-                                </div>
+                                <RoomConversationMenu
+                                    room={room}
+                                    muted={Boolean(mutedRoomIds[room.id])}
+                                    onCopyRoomId={(roomId) => copyText(roomId, 'Room ID')}
+                                    onRoomInfo={handleRoomInfo}
+                                    onToggleMute={handleToggleMute}
+                                    onLeaveRoom={handleLeaveRoom}
+                                    onDeleteRoom={handleDeleteRoom}
+                                />
                             )}
                         </div>
                     </div>
@@ -641,4 +873,5 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </aside>
     );
 }
+
 

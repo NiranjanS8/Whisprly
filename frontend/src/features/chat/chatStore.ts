@@ -19,6 +19,7 @@ export interface ChatMessage {
     attachment?: ChatAttachment;
     senderId: string;
     senderUsername: string;
+    senderFullName?: string | null;
     createdAt: string;
     roomId: string;
     status: MessageStatus;

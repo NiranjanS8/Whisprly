@@ -4,6 +4,8 @@ import SockJS from 'sockjs-client';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { normalizeApiPath } from '../../shared/utils';
+import { usePresenceStore } from '../presence/presenceStore';
+import { useRoomStore } from '../rooms/roomStore';
 
 const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN;
 const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http://localhost:9090'}/ws`;
@@ -11,9 +13,12 @@ const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http:
 class WebSocketService {
     private client: Client | null = null;
     private subscriptions: Map<string, StompSubscription> = new Map();
+    private subscriptionRefCounts: Map<string, number> = new Map();
     private subscriptionQueue: Set<string> = new Set();
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private currentToken: string | null = null;
+    private presenceTopicSub: StompSubscription | null = null;
+    private presenceQueueSub: StompSubscription | null = null;
 
     connect(token: string) {
         if (this.client?.active) {
@@ -32,10 +37,13 @@ class WebSocketService {
             onConnect: () => {
                 useChatStore.getState().setConnectionStatus('connected');
                 useChatStore.getState().setReconnectAttempt(0);
+                this.subscribePresenceChannels();
 
-                // Process queued subscriptions
-                this.subscriptionQueue.forEach(roomId => {
-                    this.subscribeToRoom(roomId);
+                // Re-subscribe active room topics after reconnect.
+                this.subscriptionRefCounts.forEach((count, roomId) => {
+                    if (count > 0) {
+                        this.ensureRoomSubscription(roomId);
+                    }
                 });
                 this.subscriptionQueue.clear();
             },
@@ -46,15 +54,50 @@ class WebSocketService {
 
             onDisconnect: () => {
                 useChatStore.getState().setConnectionStatus('disconnected');
+                usePresenceStore.getState().markAllOffline();
             },
 
             onWebSocketClose: () => {
                 useChatStore.getState().setConnectionStatus('disconnected');
+                usePresenceStore.getState().markAllOffline();
                 this.scheduleReconnect();
             },
         });
 
         this.client.activate();
+    }
+
+    private subscribePresenceChannels() {
+        if (!this.client?.connected) return;
+
+        if (!this.presenceTopicSub) {
+            this.presenceTopicSub = this.client.subscribe('/topic/presence/snapshot', (message: IMessage) => {
+                this.handlePresenceMessage(message);
+            });
+        }
+
+        if (!this.presenceQueueSub) {
+            this.presenceQueueSub = this.client.subscribe('/user/queue/presence', (message: IMessage) => {
+                this.handlePresenceMessage(message);
+            });
+        }
+
+        this.client.publish({
+            destination: '/app/presence/snapshot',
+            body: '{}',
+        });
+    }
+
+    private handlePresenceMessage(message: IMessage) {
+        try {
+            const body = JSON.parse(message.body);
+            const onlineUserIds: string[] = Array.isArray(body.onlineUserIds)
+                ? body.onlineUserIds
+                : [];
+            usePresenceStore.getState().setPresenceSnapshot(onlineUserIds);
+        } catch (e) {
+            console.error('Failed to parse presence snapshot:', e);
+        }
     }
 
     private scheduleReconnect() {
@@ -76,10 +119,22 @@ class WebSocketService {
     }
 
     subscribeToRoom(roomId: string) {
+        const nextRefCount = (this.subscriptionRefCounts.get(roomId) ?? 0) + 1;
+        this.subscriptionRefCounts.set(roomId, nextRefCount);
+        if (nextRefCount > 1) {
+            return;
+        }
+
         if (!this.client?.active || !this.client.connected) {
             this.subscriptionQueue.add(roomId);
             return;
         }
+
+        this.ensureRoomSubscription(roomId);
+    }
+
+    private ensureRoomSubscription(roomId: string) {
+        if (!this.client?.active || !this.client.connected) return;
         if (this.subscriptions.has(roomId)) return;
 
         const sub = this.client.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
@@ -94,10 +149,12 @@ class WebSocketService {
                         : undefined,
                     senderId: body.senderId,
                     senderUsername: body.senderUsername,
+                    senderFullName: body.senderFullName ?? null,
                     createdAt: body.createdAt,
                     roomId: roomId,
                     status: 'sent',
                 };
+                useRoomStore.getState().touchRoomActivity(roomId, chatMsg.createdAt);
 
                 const store = useChatStore.getState();
                 // Check if this is a confirmation of our optimistic message
@@ -128,11 +185,20 @@ class WebSocketService {
     }
 
     unsubscribeFromRoom(roomId: string) {
+        const currentRefCount = this.subscriptionRefCounts.get(roomId) ?? 0;
+        if (currentRefCount <= 1) {
+            this.subscriptionRefCounts.delete(roomId);
+        } else {
+            this.subscriptionRefCounts.set(roomId, currentRefCount - 1);
+            return;
+        }
+
         const sub = this.subscriptions.get(roomId);
         if (sub) {
             sub.unsubscribe();
             this.subscriptions.delete(roomId);
         }
+        this.subscriptionQueue.delete(roomId);
     }
 
     sendMessage(roomId: string, content: string, idempotencyKey: string) {
@@ -151,6 +217,16 @@ class WebSocketService {
         }
         this.subscriptions.forEach((sub) => sub.unsubscribe());
         this.subscriptions.clear();
+        this.subscriptionRefCounts.clear();
+        this.subscriptionQueue.clear();
+        if (this.presenceTopicSub) {
+            this.presenceTopicSub.unsubscribe();
+            this.presenceTopicSub = null;
+        }
+        if (this.presenceQueueSub) {
+            this.presenceQueueSub.unsubscribe();
+            this.presenceQueueSub = null;
+        }
         this.currentToken = null;
 
         if (this.client?.active) {
@@ -158,6 +234,7 @@ class WebSocketService {
         }
         this.client = null;
         useChatStore.getState().setConnectionStatus('disconnected');
+        usePresenceStore.getState().markAllOffline();
     }
 
     get isConnected() {

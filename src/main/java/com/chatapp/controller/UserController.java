@@ -61,6 +61,7 @@ public class UserController {
         UserSummaryResponse response = UserSummaryResponse.builder()
                 .id(targetUser.getId())
                 .username(targetUser.getUsername())
+                .fullName(targetUser.getFullName())
                 .avatarUrl(targetUser.getAvatarUrl())
                 .online(presenceService.isOnline(targetUser.getId()))
                 .build();

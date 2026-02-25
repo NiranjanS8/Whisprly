@@ -194,6 +194,7 @@ public class MessageService {
                 .roomId(message.getRoom().getId())
                 .senderId(message.getSender().getId())
                 .senderUsername(message.getSender().getUsername())
+                .senderFullName(message.getSender().getFullName())
                 .content(message.getContent())
                 .attachment(attachment)
                 .createdAt(message.getCreatedAt())

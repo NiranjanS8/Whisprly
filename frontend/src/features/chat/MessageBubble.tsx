@@ -92,6 +92,7 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAvatar, showSender, avatarUrl }: Props) {
+    const senderDisplayName = message.senderFullName?.trim() || message.senderUsername;
     const resolvedAvatarUrl = resolveMediaUrl(avatarUrl ?? null);
     const attachment = message.attachment;
     const attachmentUrl = attachment ? normalizeApiPath(attachment.url) : '';
@@ -191,13 +192,13 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
         <>
             <div className={`msg ${isOwn ? 'msg--own' : 'msg--other'} ${showAvatar ? '' : 'msg--stacked'}`}>
                 {!isOwn && showAvatar && (
-                    <div className="msg__avatar" title={message.senderUsername}>
-                        {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${message.senderUsername} avatar`} /> : getInitials(message.senderUsername)}
+                    <div className="msg__avatar" title={senderDisplayName}>
+                        {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${senderDisplayName} avatar`} /> : getInitials(senderDisplayName)}
                     </div>
                 )}
                 {!isOwn && !showAvatar && <div className="msg__avatar-spacer" aria-hidden="true" />}
                 <div className="msg__body">
-                    {!isOwn && showSender && <span className="msg__sender">{message.senderUsername}</span>}
+                    {!isOwn && showSender && <span className="msg__sender">{senderDisplayName}</span>}
                     <div className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''}`}>
                         {message.content && <p className="msg__content">{message.content}</p>}
                         {attachment && (

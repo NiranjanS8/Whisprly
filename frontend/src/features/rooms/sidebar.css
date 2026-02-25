@@ -176,9 +176,17 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.room-card__online-dot--online {
     background: #2ecc71;
     box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.15);
-    flex-shrink: 0;
+}
+
+.room-card__online-dot--offline {
+    background: #8a94a2;
+    box-shadow: none;
 }
 
 .room-card__actions {

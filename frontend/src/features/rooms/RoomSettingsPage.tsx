@@ -23,6 +23,7 @@ const MUTE_STORAGE_KEY = 'whisprly-muted-rooms';
 interface UserPreview {
     id: string;
     username: string;
+    fullName?: string | null;
     avatarUrl: string | null;
     online: boolean;
 }
@@ -69,6 +70,8 @@ export default function RoomSettingsPage() {
     const [isMuted, setIsMuted] = useState(false);
 
     const isOwner = room && userId && room.createdById === userId;
+    const toDisplayName = (name?: string | null, username?: string) =>
+        (name && name.trim()) ? name.trim() : (username || '');
     const otherMembers = useMemo(
         () => members.filter((member) => member.userId !== userId),
         [members, userId]
@@ -178,7 +181,7 @@ export default function RoomSettingsPage() {
 
     const handleRemoveMember = async (member: Member) => {
         if (!roomId || !isOwner) return;
-        const confirmed = window.confirm(`Remove ${member.username} from this room?`);
+        const confirmed = window.confirm(`Remove ${toDisplayName(member.fullName, member.username)} from this room?`);
         if (!confirmed) return;
 
         setError('');
@@ -218,7 +221,7 @@ export default function RoomSettingsPage() {
     const handleTransferOwnership = async () => {
         if (!roomId || !selectedNewOwnerId || !isOwner) return;
         const target = members.find((member) => member.userId === selectedNewOwnerId);
-        const confirmed = window.confirm(`Transfer ownership to ${target?.username || 'selected member'}?`);
+        const confirmed = window.confirm(`Transfer ownership to ${toDisplayName(target?.fullName, target?.username) || 'selected member'}?`);
         if (!confirmed) return;
 
         setTransferring(true);
@@ -349,7 +352,7 @@ export default function RoomSettingsPage() {
                     </button>
                     {previewUser && (
                         <div className="room-settings__preview">
-                            <span>{previewUser.username} ({previewUser.online ? 'Online' : 'Offline'})</span>
+                            <span>{toDisplayName(previewUser.fullName, previewUser.username)} ({previewUser.online ? 'Online' : 'Offline'})</span>
                             <button type="button" onClick={handleAddMember} disabled={addingMember}>
                                 {addingMember ? 'Adding...' : 'Add Member'}
                             </button>
@@ -360,7 +363,7 @@ export default function RoomSettingsPage() {
                     {members.map((member) => (
                         <li key={member.id}>
                             <div>
-                                <span className="room-settings__member-name">{member.username}</span>
+                                <span className="room-settings__member-name">{toDisplayName(member.fullName, member.username)}</span>
                                 <span className={`room-settings__role room-settings__role--${member.role.toLowerCase()}`}>{member.role}</span>
                             </div>
                             {member.role !== 'OWNER' && (
@@ -389,7 +392,7 @@ export default function RoomSettingsPage() {
                         <select value={selectedNewOwnerId} onChange={(e) => setSelectedNewOwnerId(e.target.value)}>
                             <option value="">Select member to transfer ownership</option>
                             {otherMembers.map((member) => (
-                                <option key={member.userId} value={member.userId}>{member.username}</option>
+                                <option key={member.userId} value={member.userId}>{toDisplayName(member.fullName, member.username)}</option>
                             ))}
                         </select>
                         <button type="button" onClick={handleTransferOwnership} disabled={!selectedNewOwnerId || transferring}>

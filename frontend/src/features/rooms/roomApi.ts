@@ -20,6 +20,7 @@ export interface Member {
     id: string;
     userId: string;
     username: string;
+    fullName?: string | null;
     email: string;
     role: string;
     joinedAt: string;

@@ -356,6 +356,7 @@ public class ChatRoomService {
                 .id(member.getId())
                 .userId(member.getUser().getId())
                 .username(member.getUser().getUsername())
+                .fullName(member.getUser().getFullName())
                 .role(member.getRole().name())
                 .joinedAt(member.getJoinedAt())
                 .build();

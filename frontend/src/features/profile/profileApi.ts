@@ -12,6 +12,7 @@ export interface UserProfile {
 export interface UserSummary {
     id: string;
     username: string;
+    fullName: string | null;
     avatarUrl: string | null;
     online: boolean;
 }
