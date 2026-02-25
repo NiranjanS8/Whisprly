@@ -1,32 +1,58 @@
-# Build output
-target/
-
-# IDE
-.idea/
-*.iml
-.vscode/
-.settings/
-.project
-.classpath
-*.swp
-*.swo
-
 # OS
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+# IDE / Editor
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Java / Maven
+/target/
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+.recommenders/
+
+# Logs and temp
 *.log
 logs/
-
-# Maven
-.mvn/wrapper/maven-wrapper.jar
-
-# Environment / secrets
-.env
-*.env
-
-# Test files
+*.tmp
+*.temp
 startup-log.txt
-test-*.json
+backend_error.txt
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+frontend/*.tsbuildinfo
+frontend/vite_build_error.txt
+frontend/build_output.txt
+frontend/tsc_errors*.txt
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Local runtime data
+uploads/*
+!uploads/.gitkeep
+
+# Misc generated docs / scratch
+*.pid
