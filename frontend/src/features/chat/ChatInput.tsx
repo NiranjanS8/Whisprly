@@ -1,21 +1,41 @@
-import { type KeyboardEvent, type ChangeEvent, useState, useRef, useCallback } from 'react';
+import { type KeyboardEvent, type ChangeEvent, useState, useRef, useCallback, useEffect } from 'react';
 
 interface Props {
     onSendText: (content: string) => void;
     onUploadAttachment: (file: File, content?: string, onProgress?: (progress: number) => void) => Promise<void>;
     disabled: boolean;
+    editMode?: {
+        messageId: string;
+        initialContent: string;
+        onCancel: () => void;
+    };
 }
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_FILES = '.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
 
-export default function ChatInput({ onSendText, onUploadAttachment, disabled }: Props) {
+export default function ChatInput({ onSendText, onUploadAttachment, disabled, editMode }: Props) {
     const [value, setValue] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (editMode) {
+            setValue(editMode.initialContent ?? '');
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+                textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+            }
+        } else {
+            setValue('');
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
+        }
+    }, [editMode?.messageId]);
 
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
@@ -29,8 +49,12 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled }: 
                     }
                 }
             }
+            if (e.key === 'Escape' && editMode) {
+                e.preventDefault();
+                editMode.onCancel();
+            }
         },
-        [value, disabled, uploading, onSendText]
+        [value, disabled, uploading, onSendText, editMode]
     );
 
     const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -48,7 +72,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled }: 
     };
 
     const handleAttachClick = () => {
-        if (disabled || uploading) return;
+        if (disabled || uploading || editMode) return;
         fileInputRef.current?.click();
     };
 
@@ -84,18 +108,26 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled }: 
 
     return (
         <div className="chat-input-container">
+            {editMode && (
+                <div className="chat-edit-banner" role="status" aria-live="polite">
+                    <span>Editing message</span>
+                    <button type="button" onClick={editMode.onCancel} className="chat-edit-banner__cancel">
+                        Cancel
+                    </button>
+                </div>
+            )}
             <input
                 ref={fileInputRef}
                 type="file"
                 accept={ACCEPTED_FILES}
                 className="chat-file-input-hidden"
                 onChange={handleFileSelected}
-                disabled={disabled || uploading}
+                disabled={disabled || uploading || !!editMode}
             />
             <button
                 className="chat-attach-btn"
                 onClick={handleAttachClick}
-                disabled={disabled || uploading}
+                disabled={disabled || uploading || !!editMode}
                 aria-label="Attach file"
                 type="button"
             >
@@ -124,12 +156,16 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled }: 
                     }
                 }}
                 disabled={!value.trim() || disabled || uploading}
-                aria-label="Send message"
+                aria-label={editMode ? 'Save message' : 'Send message'}
                 type="button"
             >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                </svg>
+                {editMode ? (
+                    <span className="chat-send-btn__label">Save</span>
+                ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                )}
             </button>
             {(uploading || uploadError) && (
                 <div className="chat-upload-status" role="status" aria-live="polite">

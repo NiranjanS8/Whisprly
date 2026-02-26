@@ -1,6 +1,7 @@
 package com.chatapp.controller;
 
 import com.chatapp.dto.ChatMessageResponse;
+import com.chatapp.dto.MessageEditRequest;
 import com.chatapp.model.AttachmentCategory;
 import com.chatapp.model.User;
 import com.chatapp.service.MessageService;
@@ -54,6 +55,38 @@ public class MessageController {
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/{roomId}/messages/{messageId}")
+    public ResponseEntity<ChatMessageResponse> editMessage(
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId,
+            @RequestBody MessageEditRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        ChatMessageResponse response = messageService.editMessage(
+                roomId,
+                messageId,
+                currentUser.getId(),
+                request.getContent()
+        );
+
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{roomId}/messages/{messageId}")
+    public ResponseEntity<ChatMessageResponse> deleteMessage(
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatMessageResponse response = messageService.deleteMessage(
+                roomId,
+                messageId,
+                currentUser.getId()
+        );
+
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{roomId}/messages/{messageId}/attachment")

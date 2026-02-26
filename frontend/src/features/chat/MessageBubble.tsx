@@ -9,6 +9,8 @@ interface Props {
     showAvatar: boolean;
     showSender: boolean;
     avatarUrl?: string | null;
+    onEdit?: (message: ChatMessage) => void;
+    onDelete?: (message: ChatMessage) => void;
 }
 
 const PREVIEW_CACHE_LIMIT = 120;
@@ -91,7 +93,15 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <span className="msg__status msg__status--failed" aria-label="Failed">!</span>;
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAvatar, showSender, avatarUrl }: Props) {
+const MessageBubble = React.memo(function MessageBubble({
+    message,
+    isOwn,
+    showAvatar,
+    showSender,
+    avatarUrl,
+    onEdit,
+    onDelete,
+}: Props) {
     const senderDisplayName = message.senderFullName?.trim() || message.senderUsername;
     const resolvedAvatarUrl = resolveMediaUrl(avatarUrl ?? null);
     const attachment = message.attachment;
@@ -99,15 +109,18 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [imageViewerOpen, setImageViewerOpen] = useState(false);
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const isImage = attachment?.category === 'IMAGE';
     const isVideo = attachment?.category === 'VIDEO';
     const isVisualPreview = isImage || isVideo;
+    const isDeleted = !!message.deletedAt;
+    const canEdit = isOwn && !!message.id && !isDeleted && message.status !== 'sending';
 
     useEffect(() => {
         let active = true;
 
         const loadPreview = async () => {
-            if (!attachment || !isVisualPreview) {
+            if (!attachment || !isVisualPreview || isDeleted) {
                 setPreviewUrl(null);
                 setPreviewLoading(false);
                 return;
@@ -199,9 +212,15 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
                 {!isOwn && !showAvatar && <div className="msg__avatar-spacer" aria-hidden="true" />}
                 <div className="msg__body">
                     {!isOwn && showSender && <span className="msg__sender">{senderDisplayName}</span>}
-                    <div className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''}`}>
-                        {message.content && <p className="msg__content">{message.content}</p>}
-                        {attachment && (
+                    <div
+                        className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''} ${isDeleted ? 'msg__bubble--deleted' : ''}`}
+                    >
+                        {message.content && (
+                            <p className={`msg__content ${isDeleted ? 'msg__content--deleted' : ''}`}>
+                                {message.content}
+                            </p>
+                        )}
+                        {!isDeleted && attachment && (
                             <div className="msg__attachment">
                                 {isVisualPreview && previewUrl && (
                                     <div className="msg__attachment-preview-shell">
@@ -244,10 +263,50 @@ const MessageBubble = React.memo(function MessageBubble({ message, isOwn, showAv
                         )}
                         <span className="msg__time">
                             {formatTime(message.createdAt)}
+                            {message.editedAt && !isDeleted && <span className="msg__edited">Edited</span>}
                             {isOwn && (
                                 <MessageStatusIndicator status={message.status} />
                             )}
                         </span>
+                        {canEdit && (
+                            <div className="msg__actions">
+                                <button
+                                    type="button"
+                                    className="msg__actions-btn"
+                                    aria-label="Message actions"
+                                    onClick={() => setMenuOpen((prev) => !prev)}
+                                >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="12" cy="5" r="1.6" fill="currentColor" />
+                                        <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+                                        <circle cx="12" cy="19" r="1.6" fill="currentColor" />
+                                    </svg>
+                                </button>
+                                {menuOpen && (
+                                    <div className="msg__actions-menu">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                onEdit?.(message);
+                                            }}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="msg__actions-delete"
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                onDelete?.(message);
+                                            }}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

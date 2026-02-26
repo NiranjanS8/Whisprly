@@ -61,3 +61,9 @@ ALTER TABLE messages
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS attachment_url VARCHAR(1000);
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;

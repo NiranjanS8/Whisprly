@@ -24,6 +24,8 @@ interface MessageDto {
     senderUsername: string;
     senderFullName?: string | null;
     createdAt: string;
+    editedAt?: string | null;
+    deletedAt?: string | null;
     idempotencyKey?: string;
     roomId: string;
 }
@@ -42,6 +44,8 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         senderUsername: m.senderUsername,
         senderFullName: m.senderFullName ?? null,
         createdAt: m.createdAt,
+        editedAt: m.editedAt ?? null,
+        deletedAt: m.deletedAt ?? null,
         roomId: m.roomId || roomId,
         status: 'sent',
     };
@@ -77,5 +81,15 @@ export async function uploadAttachmentMessage(
         },
     });
 
+    return toChatMessage(res.data, roomId);
+}
+
+export async function editMessage(roomId: string, messageId: string, content: string): Promise<ChatMessage> {
+    const res = await httpClient.patch<MessageDto>(`/rooms/${roomId}/messages/${messageId}`, { content });
+    return toChatMessage(res.data, roomId);
+}
+
+export async function deleteMessage(roomId: string, messageId: string): Promise<ChatMessage> {
+    const res = await httpClient.delete<MessageDto>(`/rooms/${roomId}/messages/${messageId}`);
     return toChatMessage(res.data, roomId);
 }

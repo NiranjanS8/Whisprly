@@ -23,4 +23,6 @@ public class ChatMessageResponse {
     private String content;
     private AttachmentResponse attachment;
     private Instant createdAt;
+    private Instant editedAt;
+    private Instant deletedAt;
 }

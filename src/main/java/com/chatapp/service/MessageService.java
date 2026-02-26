@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +34,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class MessageService {
+
+    private static final String DELETED_PLACEHOLDER = "This message was removed.";
 
     private final MessageRepository messageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -129,6 +132,60 @@ public class MessageService {
                 .map(this::toResponse);
     }
 
+    @Transactional
+    public ChatMessageResponse editMessage(UUID roomId, UUID messageId, UUID userId, String content) {
+        if (content == null || content.trim().isEmpty()) {
+            throw new IllegalArgumentException("Message content is required");
+        }
+
+        Message message = messageRepository.findByIdAndRoomIdWithSender(messageId, roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+
+        if (!message.getSender().getId().equals(userId)) {
+            throw new AccessDeniedException("You can only edit your own messages");
+        }
+
+        if (message.getDeletedAt() != null) {
+            throw new IllegalStateException("Deleted messages cannot be edited");
+        }
+
+        String trimmedContent = content.trim();
+        if (!trimmedContent.equals(message.getContent())) {
+            message.setContent(trimmedContent);
+            message.setEditedAt(Instant.now());
+            message = messageRepository.save(message);
+        }
+
+        return toResponse(message);
+    }
+
+    @Transactional
+    public ChatMessageResponse deleteMessage(UUID roomId, UUID messageId, UUID userId) {
+        Message message = messageRepository.findByIdAndRoomIdWithSender(messageId, roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+
+        if (!message.getSender().getId().equals(userId)) {
+            throw new AccessDeniedException("You can only delete your own messages");
+        }
+
+        if (message.getDeletedAt() != null) {
+            return toResponse(message);
+        }
+
+        message.setContent(DELETED_PLACEHOLDER);
+        message.setDeletedAt(Instant.now());
+        message.setEditedAt(null);
+        message.setAttachmentOriginalName(null);
+        message.setAttachmentContentType(null);
+        message.setAttachmentSizeBytes(null);
+        message.setAttachmentCategory(null);
+        message.setAttachmentStorageKey(null);
+        message.setAttachmentUrl(null);
+
+        message = messageRepository.save(message);
+        return toResponse(message);
+    }
+
     @Transactional(readOnly = true)
     public AttachmentDownload getAttachment(UUID roomId, UUID messageId, UUID userId) {
         if (!memberRepository.existsByRoomIdAndUserId(roomId, userId)) {
@@ -171,7 +228,9 @@ public class MessageService {
 
     private ChatMessageResponse toResponse(Message message) {
         AttachmentResponse attachment = null;
-        if (message.getAttachmentStorageKey() != null && !message.getAttachmentStorageKey().isBlank()) {
+        if (message.getDeletedAt() == null
+                && message.getAttachmentStorageKey() != null
+                && !message.getAttachmentStorageKey().isBlank()) {
             boolean inlinePreviewable = message.getAttachmentCategory() == AttachmentCategory.IMAGE
                     || message.getAttachmentCategory() == AttachmentCategory.VIDEO
                     || message.getAttachmentCategory() == AttachmentCategory.AUDIO;
@@ -198,6 +257,8 @@ public class MessageService {
                 .content(message.getContent())
                 .attachment(attachment)
                 .createdAt(message.getCreatedAt())
+                .editedAt(message.getEditedAt())
+                .deletedAt(message.getDeletedAt())
                 .build();
     }
 

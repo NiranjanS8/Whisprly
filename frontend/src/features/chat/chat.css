@@ -261,6 +261,10 @@
     transition: all 0.2s ease;
 }
 
+.msg__bubble--deleted {
+    cursor: default;
+}
+
 .msg--own .msg__bubble {
     background-color: color-mix(in srgb, var(--color-msg-own) 90%, black 10%);
     color: var(--color-msg-own-text);
@@ -290,6 +294,11 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+
+.msg__content--deleted {
+    font-style: italic;
+    color: var(--color-text-muted);
 }
 
 .msg__attachment {
@@ -485,6 +494,84 @@
     justify-content: flex-end;
 }
 
+.msg__edited {
+    font-size: 10px;
+    text-transform: lowercase;
+    letter-spacing: 0.2px;
+    color: var(--color-text-muted);
+}
+
+.msg__actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.msg__bubble:hover .msg__actions,
+.msg__actions:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.msg__bubble--deleted .msg__actions {
+    display: none;
+}
+
+.msg__actions-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.2);
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.msg__actions-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.msg__actions-menu {
+    position: absolute;
+    top: auto;
+    bottom: 30px;
+    right: 0;
+    min-width: 120px;
+    background: #1b232e;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+    z-index: 10;
+    padding: 4px;
+}
+
+.msg__actions-menu button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 12px;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.msg__actions-menu button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.msg__actions-delete {
+    color: #f59e9e;
+}
+
 .msg__status {
     width: 14px;
     height: 14px;
@@ -534,6 +621,32 @@
     flex-wrap: wrap;
     align-items: flex-end;
     gap: var(--space-3);
+}
+
+.chat-edit-banner {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(45, 108, 223, 0.12);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    border: 1px solid rgba(45, 108, 223, 0.25);
+}
+
+.chat-edit-banner__cancel {
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.chat-send-btn__label {
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .chat-file-input-hidden {

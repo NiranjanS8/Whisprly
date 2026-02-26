@@ -7,7 +7,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { wsService } from './websocket';
-import { fetchMessages, uploadAttachmentMessage } from './messageApi';
+import { deleteMessage, editMessage, fetchMessages, uploadAttachmentMessage } from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
 import { usePresenceStore } from '../presence/presenceStore';
@@ -53,6 +53,7 @@ export default function ChatPanel() {
     const [loading, setLoading] = useState(false);
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+    const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
 
@@ -142,10 +143,23 @@ export default function ChatPanel() {
 
     useEffect(() => {
         setHeaderMenuOpen(false);
+        setEditingMessage(null);
     }, [activeRoomId]);
 
     const handleSend = (content: string) => {
         if (!activeRoomId || !userId || !username) return;
+
+        if (editingMessage && editingMessage.id) {
+            const nextContent = content.trim();
+            if (!nextContent) return;
+            editMessage(activeRoomId, editingMessage.id, nextContent)
+                .then((updated) => {
+                    useChatStore.getState().upsertMessage(activeRoomId, updated);
+                    setEditingMessage(null);
+                })
+                .catch(console.error);
+            return;
+        }
 
         const idempotencyKey = generateIdempotencyKey();
         const optimisticMsg: ChatMessage = {
@@ -175,10 +189,31 @@ export default function ChatPanel() {
         content?: string,
         onProgress?: (progress: number) => void
     ) => {
-        if (!activeRoomId) return;
+        if (!activeRoomId || editingMessage) return;
         const message = await uploadAttachmentMessage(activeRoomId, file, content, onProgress);
         appendMessage(activeRoomId, message);
         touchRoomActivity(activeRoomId, message.createdAt);
+    };
+
+    const handleStartEdit = (message: ChatMessage) => {
+        if (!message.id || message.deletedAt) return;
+        setEditingMessage(message);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingMessage(null);
+    };
+
+    const handleDeleteMessage = (message: ChatMessage) => {
+        if (!activeRoomId || !message.id) return;
+        deleteMessage(activeRoomId, message.id)
+            .then((updated) => {
+                useChatStore.getState().upsertMessage(activeRoomId, updated);
+                if (editingMessage?.id === message.id) {
+                    setEditingMessage(null);
+                }
+            })
+            .catch(console.error);
     };
 
     if (!activeRoomId || !activeRoom) {
@@ -285,6 +320,8 @@ export default function ChatPanel() {
                                     showAvatar={showAvatar}
                                     showSender={showAvatar}
                                     avatarUrl={isDmRoom ? dmParticipant?.avatarUrl : undefined}
+                                    onEdit={handleStartEdit}
+                                    onDelete={handleDeleteMessage}
                                 />
                             );
                         }}
@@ -296,6 +333,15 @@ export default function ChatPanel() {
                 onSendText={handleSend}
                 onUploadAttachment={handleUploadAttachment}
                 disabled={connectionStatus !== 'connected'}
+                editMode={
+                    editingMessage
+                        ? {
+                            messageId: editingMessage.id ?? '',
+                            initialContent: editingMessage.content,
+                            onCancel: handleCancelEdit,
+                        }
+                        : undefined
+                }
             />
         </div>
     );

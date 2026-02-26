@@ -57,6 +57,12 @@ public class Message {
     @Column(name = "idempotency_key", unique = true)
     private UUID idempotencyKey;
 
+    @Column(name = "edited_at")
+    private Instant editedAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -21,6 +21,8 @@ export interface ChatMessage {
     senderUsername: string;
     senderFullName?: string | null;
     createdAt: string;
+    editedAt?: string | null;
+    deletedAt?: string | null;
     roomId: string;
     status: MessageStatus;
 }
@@ -31,6 +33,7 @@ interface ChatState {
     reconnectAttempt: number;
 
     appendMessage: (roomId: string, msg: ChatMessage) => void;
+    upsertMessage: (roomId: string, msg: ChatMessage) => void;
     confirmMessage: (roomId: string, idempotencyKey: string, serverMsg: ChatMessage) => void;
     failMessage: (roomId: string, idempotencyKey: string) => void;
     updateMessageStatus: (roomId: string, idempotencyKey: string, status: MessageStatus) => void;
@@ -61,6 +64,38 @@ export const useChatStore = create<ChatState>((set) => ({
                 messagesByRoom: {
                     ...state.messagesByRoom,
                     [roomId]: [...existing, msg],
+                },
+            };
+        }),
+
+    upsertMessage: (roomId, msg) =>
+        set((state) => {
+            const existing = state.messagesByRoom[roomId] ?? [];
+            const index = existing.findIndex(
+                (m) =>
+                    (msg.id && m.id === msg.id) ||
+                    (msg.idempotencyKey && m.idempotencyKey === msg.idempotencyKey)
+            );
+            if (index === -1) {
+                return {
+                    messagesByRoom: {
+                        ...state.messagesByRoom,
+                        [roomId]: [...existing, msg],
+                    },
+                };
+            }
+
+            const current = existing[index];
+            const updated = [...existing];
+            updated[index] = {
+                ...current,
+                ...msg,
+                status: current.status,
+            };
+            return {
+                messagesByRoom: {
+                    ...state.messagesByRoom,
+                    [roomId]: updated,
                 },
             };
         }),

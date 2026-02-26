@@ -151,21 +151,28 @@ class WebSocketService {
                     senderUsername: body.senderUsername,
                     senderFullName: body.senderFullName ?? null,
                     createdAt: body.createdAt,
+                    editedAt: body.editedAt ?? null,
+                    deletedAt: body.deletedAt ?? null,
                     roomId: roomId,
                     status: 'sent',
                 };
+                const store = useChatStore.getState();
+                const roomMessages = store.messagesByRoom[roomId] ?? [];
+                const existingById = chatMsg.id && roomMessages.find((m) => m.id === chatMsg.id);
+
+                if (existingById) {
+                    store.upsertMessage(roomId, chatMsg);
+                    return;
+                }
+
                 useRoomStore.getState().touchRoomActivity(roomId, chatMsg.createdAt);
 
-                const store = useChatStore.getState();
-                // Check if this is a confirmation of our optimistic message
-                const roomMessages = store.messagesByRoom[roomId] ?? [];
                 const isOwnOptimistic = roomMessages.some(
                     (m) => m.idempotencyKey === chatMsg.idempotencyKey && m.status === 'sending'
                 );
 
                 if (isOwnOptimistic) {
                     store.confirmMessage(roomId, chatMsg.idempotencyKey, chatMsg);
-                    // Simulate read/seen transition after server acknowledgement.
                     window.setTimeout(() => {
                         const current = useChatStore.getState().messagesByRoom[roomId] ?? [];
                         const target = current.find((m) => m.idempotencyKey === chatMsg.idempotencyKey);
