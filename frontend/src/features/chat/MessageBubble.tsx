@@ -96,6 +96,15 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <span className="msg__status msg__status--failed" aria-label="Failed">!</span>;
 }
 
+function formatExpiryRemaining(expiresAt: string, nowTs: number): string {
+    const remainingMs = new Date(expiresAt).getTime() - nowTs;
+    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    if (remainingSeconds <= 0) return 'Expiring...';
+    if (remainingSeconds < 60) return `Expires in ${remainingSeconds}s`;
+    if (remainingSeconds < 3600) return `Expires in ${Math.ceil(remainingSeconds / 60)}m`;
+    return `Expires in ${Math.ceil(remainingSeconds / 3600)}h`;
+}
+
 const MessageBubble = React.memo(function MessageBubble({
     message,
     isOwn,
@@ -116,6 +125,7 @@ const MessageBubble = React.memo(function MessageBubble({
     const [imageViewerOpen, setImageViewerOpen] = useState(false);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [nowTs, setNowTs] = useState(() => Date.now());
     const isImage = attachment?.category === 'IMAGE';
     const isVideo = attachment?.category === 'VIDEO';
     const isVisualPreview = isImage || isVideo;
@@ -123,6 +133,7 @@ const MessageBubble = React.memo(function MessageBubble({
     const canEdit = isOwn && !!message.id && !isDeleted && message.status !== 'sending';
     const canPin = !!message.id && !isDeleted && message.status !== 'sending';
     const showActions = (canEdit || canPin) && !isDeleted;
+    const hasExpiry = !!message.expiresAt && !isDeleted;
 
     useEffect(() => {
         let active = true;
@@ -170,6 +181,12 @@ const MessageBubble = React.memo(function MessageBubble({
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [imageViewerOpen]);
+
+    useEffect(() => {
+        if (!hasExpiry || !message.expiresAt) return;
+        const intervalId = window.setInterval(() => setNowTs(Date.now()), 1000);
+        return () => window.clearInterval(intervalId);
+    }, [hasExpiry, message.expiresAt]);
 
     useEffect(() => {
         if (!imageViewerOpen) return;
@@ -273,6 +290,7 @@ const MessageBubble = React.memo(function MessageBubble({
                         )}
                         <span className="msg__time">
                             {formatTime(message.createdAt)}
+                            {hasExpiry && message.expiresAt && <span className="msg__expiry">{formatExpiryRemaining(message.expiresAt, nowTs)}</span>}
                             {message.pinnedAt && !isDeleted && <span className="msg__pinned">Pinned</span>}
                             {message.editedAt && !isDeleted && <span className="msg__edited">Edited</span>}
                             {isOwn && (

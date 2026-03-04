@@ -52,6 +52,9 @@ public class ChatRoom {
     @Builder.Default
     private Boolean membersCanAddMembers = false;
 
+    @Column(name = "self_destruct_seconds")
+    private Integer selfDestructSeconds;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;

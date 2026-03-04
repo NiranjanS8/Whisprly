@@ -36,6 +36,7 @@ import java.util.UUID;
 public class MessageService {
 
     private static final String DELETED_PLACEHOLDER = "This message was removed.";
+    private static final String EXPIRED_PLACEHOLDER = "This message expired.";
 
     private final MessageRepository messageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -71,6 +72,7 @@ public class MessageService {
                 .sender(sender)
                 .content(content.trim())
                 .idempotencyKey(idempotencyKey)
+                .expiresAt(resolveExpiration(room))
                 .build();
 
         message = messageRepository.save(message);
@@ -107,6 +109,7 @@ public class MessageService {
                 .sender(sender)
                 .content(content == null ? "" : content.trim())
                 .idempotencyKey(idempotencyKey)
+                .expiresAt(resolveExpiration(room))
                 .attachmentOriginalName(validatedAttachment.fileName())
                 .attachmentContentType(validatedAttachment.contentType())
                 .attachmentSizeBytes(validatedAttachment.sizeBytes())
@@ -183,6 +186,7 @@ public class MessageService {
         message.setAttachmentUrl(null);
         message.setPinnedAt(null);
         message.setPinnedBy(null);
+        message.setExpiresAt(null);
 
         message = messageRepository.save(message);
         return toResponse(message);
@@ -251,6 +255,33 @@ public class MessageService {
         );
     }
 
+    @Transactional
+    public java.util.List<ChatMessageResponse> expireDueMessages() {
+        Instant now = Instant.now();
+        java.util.List<Message> expiringMessages = messageRepository.findExpiredMessages(now);
+        if (expiringMessages.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        expiringMessages.forEach((message) -> {
+            message.setContent(EXPIRED_PLACEHOLDER);
+            message.setDeletedAt(now);
+            message.setEditedAt(null);
+            message.setAttachmentOriginalName(null);
+            message.setAttachmentContentType(null);
+            message.setAttachmentSizeBytes(null);
+            message.setAttachmentCategory(null);
+            message.setAttachmentStorageKey(null);
+            message.setAttachmentUrl(null);
+            message.setPinnedAt(null);
+            message.setPinnedBy(null);
+        });
+
+        return messageRepository.saveAll(expiringMessages).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private ChatRoom validateSenderCanMessage(UUID roomId, UUID senderId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
@@ -267,6 +298,14 @@ public class MessageService {
 
     private String buildAttachmentUrl(UUID roomId, UUID messageId) {
         return "/rooms/" + roomId + "/messages/" + messageId + "/attachment";
+    }
+
+    private Instant resolveExpiration(ChatRoom room) {
+        Integer ttlSeconds = room.getSelfDestructSeconds();
+        if (ttlSeconds == null || ttlSeconds <= 0) {
+            return null;
+        }
+        return Instant.now().plusSeconds(ttlSeconds);
     }
 
     private ChatMessageResponse toResponse(Message message) {
@@ -302,6 +341,7 @@ public class MessageService {
                 .createdAt(message.getCreatedAt())
                 .editedAt(message.getEditedAt())
                 .deletedAt(message.getDeletedAt())
+                .expiresAt(message.getExpiresAt())
                 .pinnedAt(message.getPinnedAt())
                 .pinnedById(message.getPinnedBy() == null ? null : message.getPinnedBy().getId())
                 .pinnedByUsername(message.getPinnedBy() == null ? null : message.getPinnedBy().getUsername())

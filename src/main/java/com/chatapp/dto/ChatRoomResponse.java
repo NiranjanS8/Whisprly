@@ -27,5 +27,6 @@ public class ChatRoomResponse {
     private String description;
     private Boolean membersCanMessage;
     private Boolean membersCanAddMembers;
+    private Integer selfDestructSeconds;
     private Instant pinnedAt;
 }

@@ -23,6 +23,7 @@ export interface ChatMessage {
     createdAt: string;
     editedAt?: string | null;
     deletedAt?: string | null;
+    expiresAt?: string | null;
     pinnedAt?: string | null;
     pinnedById?: string | null;
     pinnedByUsername?: string | null;

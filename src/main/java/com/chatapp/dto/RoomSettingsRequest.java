@@ -26,4 +26,6 @@ public class RoomSettingsRequest {
     private Boolean membersCanMessage;
 
     private Boolean membersCanAddMembers;
+
+    private Integer selfDestructSeconds;
 }

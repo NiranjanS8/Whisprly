@@ -162,6 +162,7 @@ class WebSocketService {
                     createdAt: body.createdAt,
                     editedAt: body.editedAt ?? null,
                     deletedAt: body.deletedAt ?? null,
+                    expiresAt: body.expiresAt ?? null,
                     pinnedAt: body.pinnedAt ?? null,
                     pinnedById: body.pinnedById ?? null,
                     pinnedByUsername: body.pinnedByUsername ?? null,

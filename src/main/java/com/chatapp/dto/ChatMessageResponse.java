@@ -25,6 +25,7 @@ public class ChatMessageResponse {
     private Instant createdAt;
     private Instant editedAt;
     private Instant deletedAt;
+    private Instant expiresAt;
     private Instant pinnedAt;
     private UUID pinnedById;
     private String pinnedByUsername;

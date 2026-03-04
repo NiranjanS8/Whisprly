@@ -12,6 +12,7 @@ export interface Room {
     description?: string | null;
     membersCanMessage?: boolean;
     membersCanAddMembers?: boolean;
+    selfDestructSeconds?: number | null;
     maxMembers?: number | null;
     allowedMediaTypes?: string | null;
     pinnedAt?: string | null;
@@ -35,6 +36,7 @@ export interface RoomSettingsPayload {
     allowedMediaTypes?: string;
     membersCanMessage?: boolean;
     membersCanAddMembers?: boolean;
+    selfDestructSeconds?: number | null;
 }
 
 export async function fetchRooms(): Promise<Room[]> {

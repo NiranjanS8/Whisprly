@@ -26,6 +26,7 @@ interface MessageDto {
     createdAt: string;
     editedAt?: string | null;
     deletedAt?: string | null;
+    expiresAt?: string | null;
     pinnedAt?: string | null;
     pinnedById?: string | null;
     pinnedByUsername?: string | null;
@@ -49,6 +50,7 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         createdAt: m.createdAt,
         editedAt: m.editedAt ?? null,
         deletedAt: m.deletedAt ?? null,
+        expiresAt: m.expiresAt ?? null,
         pinnedAt: m.pinnedAt ?? null,
         pinnedById: m.pinnedById ?? null,
         pinnedByUsername: m.pinnedByUsername ?? null,

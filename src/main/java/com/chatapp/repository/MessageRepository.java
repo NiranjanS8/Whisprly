@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +23,16 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     @Query("SELECT m FROM Message m JOIN FETCH m.sender JOIN FETCH m.room WHERE m.id = :messageId AND m.room.id = :roomId")
     Optional<Message> findByIdAndRoomIdWithSender(@Param("messageId") UUID messageId, @Param("roomId") UUID roomId);
+
+    @Query("""
+            SELECT m FROM Message m
+            JOIN FETCH m.sender
+            JOIN FETCH m.room
+            WHERE m.expiresAt IS NOT NULL
+            AND m.deletedAt IS NULL
+            AND m.expiresAt <= :now
+            """)
+    List<Message> findExpiredMessages(@Param("now") Instant now);
 
     void deleteByRoomId(UUID roomId);
 }

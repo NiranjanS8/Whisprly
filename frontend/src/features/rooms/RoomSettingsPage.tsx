@@ -59,6 +59,7 @@ export default function RoomSettingsPage() {
     const [description, setDescription] = useState('');
     const [membersCanMessage, setMembersCanMessage] = useState(true);
     const [membersCanAddMembers, setMembersCanAddMembers] = useState(false);
+    const [selfDestructSeconds, setSelfDestructSeconds] = useState<number | null>(null);
 
     const [candidateUserId, setCandidateUserId] = useState('');
     const [previewing, setPreviewing] = useState(false);
@@ -105,6 +106,7 @@ export default function RoomSettingsPage() {
                 setDescription(roomData.description ?? '');
                 setMembersCanMessage(roomData.membersCanMessage ?? true);
                 setMembersCanAddMembers(roomData.membersCanAddMembers ?? false);
+                setSelfDestructSeconds(roomData.selfDestructSeconds ?? null);
             } catch (err: any) {
                 setError(err.response?.data?.message || 'Failed to load room settings');
             } finally {
@@ -133,6 +135,7 @@ export default function RoomSettingsPage() {
                 description: description.trim(),
                 membersCanMessage,
                 membersCanAddMembers,
+                selfDestructSeconds: selfDestructSeconds ?? 0,
             });
             setRoom(updated);
             syncRoomInStore(updated);
@@ -333,6 +336,22 @@ export default function RoomSettingsPage() {
                 <label className="room-settings__switch">
                     <input type="checkbox" checked={membersCanAddMembers} onChange={(e) => setMembersCanAddMembers(e.target.checked)} />
                     <span>Members can add other members</span>
+                </label>
+                <label>
+                    Self-destruct timer
+                    <select
+                        value={selfDestructSeconds ?? 0}
+                        onChange={(e) => {
+                            const value = Number(e.target.value);
+                            setSelfDestructSeconds(value === 0 ? null : value);
+                        }}
+                    >
+                        <option value={0}>Disabled</option>
+                        <option value={30}>30 seconds</option>
+                        <option value={60}>1 minute</option>
+                        <option value={300}>5 minutes</option>
+                        <option value={3600}>1 hour</option>
+                    </select>
                 </label>
             </section>
 

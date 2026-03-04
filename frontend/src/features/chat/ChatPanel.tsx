@@ -35,6 +35,12 @@ function getDmNameFallback(roomName: string, currentUsername: string | null): st
     return normalized;
 }
 
+function formatSelfDestructLabel(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds / 3600)}h`;
+}
+
 export default function ChatPanel() {
     const navigate = useNavigate();
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
@@ -303,6 +309,7 @@ export default function ChatPanel() {
     const headerAvatar = isDmRoom ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null) : null;
     const dmOnline = isUserOnline(dmParticipant?.id);
     const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
+    const selfDestructSeconds = activeRoom?.selfDestructSeconds ?? null;
     const headerStatusText = isDmRoom
         ? (dmOnline ? 'Online' : 'Offline')
         : `${roomOnlineCount} online · ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
@@ -324,6 +331,11 @@ export default function ChatPanel() {
                             {isDmRoom && <span className={`presence-dot ${dmOnline ? 'presence-dot--online' : 'presence-dot--offline'}`} />}
                             {headerStatusText}
                         </span>
+                        {selfDestructSeconds && selfDestructSeconds > 0 && (
+                            <span className="chat-header__ephemeral">
+                                Auto-delete {formatSelfDestructLabel(selfDestructSeconds)}
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div className="chat-header__actions">

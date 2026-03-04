@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ChatRoomService {
 
+    private static final List<Integer> ALLOWED_SELF_DESTRUCT_SECONDS = List.of(30, 60, 300, 3600);
+
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository memberRepository;
     private final UserRepository userRepository;
@@ -138,6 +140,15 @@ public class ChatRoomService {
         }
         if (request.getMembersCanAddMembers() != null) {
             room.setMembersCanAddMembers(request.getMembersCanAddMembers());
+        }
+        if (request.getSelfDestructSeconds() != null) {
+            if (request.getSelfDestructSeconds() == 0) {
+                room.setSelfDestructSeconds(null);
+            } else if (!ALLOWED_SELF_DESTRUCT_SECONDS.contains(request.getSelfDestructSeconds())) {
+                throw new IllegalArgumentException("Self-destruct timer must be one of: 30, 60, 300, 3600");
+            } else {
+                room.setSelfDestructSeconds(request.getSelfDestructSeconds());
+            }
         }
 
         room = chatRoomRepository.save(room);
@@ -323,6 +334,7 @@ public class ChatRoomService {
                 .description(room.getDescription())
                 .membersCanMessage(room.getMembersCanMessage())
                 .membersCanAddMembers(room.getMembersCanAddMembers())
+                .selfDestructSeconds(room.getSelfDestructSeconds())
                 .pinnedAt(pinnedAt)
                 .build();
     }

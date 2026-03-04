@@ -19,6 +19,9 @@ ALTER TABLE chat_rooms
 ALTER TABLE chat_rooms
     ADD COLUMN IF NOT EXISTS members_can_add_members BOOLEAN NOT NULL DEFAULT FALSE;
 
+ALTER TABLE chat_rooms
+    ADD COLUMN IF NOT EXISTS self_destruct_seconds INTEGER;
+
 UPDATE chat_rooms
 SET max_members = 100
 WHERE max_members IS NULL;
@@ -67,6 +70,9 @@ ALTER TABLE messages
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
 
 ALTER TABLE chat_room_members
     ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP;

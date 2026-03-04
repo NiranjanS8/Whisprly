@@ -63,6 +63,9 @@ public class Message {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     @Column(name = "pinned_at")
     private Instant pinnedAt;
 
