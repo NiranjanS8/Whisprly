@@ -2,6 +2,9 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.ChatMessageRequest;
 import com.chatapp.dto.ChatMessageResponse;
+import com.chatapp.dto.TypingEventRequest;
+import com.chatapp.dto.TypingEventResponse;
+import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +26,7 @@ public class ChatController {
 
     private final MessageService messageService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatRoomMemberRepository memberRepository;
 
     @MessageMapping("/chat/{roomId}")
     public void handleMessage(
@@ -44,6 +48,34 @@ public class ChatController {
 
         // Transaction committed — safe to broadcast
         messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+    }
+
+    @MessageMapping("/typing/{roomId}")
+    public void handleTyping(
+            @DestinationVariable UUID roomId,
+            TypingEventRequest request,
+            SimpMessageHeaderAccessor headerAccessor) {
+        UUID senderId = (UUID) headerAccessor.getSessionAttributes().get("userId");
+        String username = (String) headerAccessor.getSessionAttributes().get("username");
+
+        if (senderId == null || username == null) {
+            log.warn("WebSocket typing event from unauthenticated session");
+            return;
+        }
+
+        if (!memberRepository.existsByRoomIdAndUserId(roomId, senderId)) {
+            log.warn("Typing event denied: user {} is not a member of room {}", senderId, roomId);
+            return;
+        }
+
+        TypingEventResponse response = TypingEventResponse.builder()
+                .roomId(roomId)
+                .userId(senderId)
+                .username(username)
+                .typing(request != null && request.isTyping())
+                .build();
+
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/typing", response);
     }
 
     @MessageExceptionHandler

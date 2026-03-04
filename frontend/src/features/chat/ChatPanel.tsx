@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useRoomStore } from '../rooms/roomStore';
@@ -45,6 +45,7 @@ export default function ChatPanel() {
     const username = useAuthStore((s) => s.username);
     const connectionStatus = useChatStore((s) => s.connectionStatus);
     const messagesByRoom = useChatStore((s) => s.messagesByRoom);
+    const typingByRoom = useChatStore((s) => s.typingByRoom);
     const appendMessage = useChatStore((s) => s.appendMessage);
     const setHistoryMessages = useChatStore((s) => s.setHistoryMessages);
     const failMessage = useChatStore((s) => s.failMessage);
@@ -80,6 +81,21 @@ export default function ChatPanel() {
             .sort((a, b) => new Date(b.pinnedAt as string).getTime() - new Date(a.pinnedAt as string).getTime());
         return pinned[0] ?? null;
     }, [messages]);
+
+    const typingUsers = useMemo(() => {
+        if (!activeRoomId) return [];
+        const roomTyping = typingByRoom[activeRoomId] ?? {};
+        return Object.entries(roomTyping)
+            .filter(([typingUserId]) => typingUserId !== userId)
+            .map(([, typingUsername]) => typingUsername);
+    }, [activeRoomId, typingByRoom, userId]);
+
+    const typingStatusText = useMemo(() => {
+        if (typingUsers.length === 0) return null;
+        if (typingUsers.length === 1) return `${typingUsers[0]} is typing...`;
+        if (typingUsers.length === 2) return `${typingUsers[0]} and ${typingUsers[1]} are typing...`;
+        return `${typingUsers[0]} and others are typing...`;
+    }, [typingUsers]);
 
     useEffect(() => {
         if (!activeRoomId) return;
@@ -240,6 +256,11 @@ export default function ChatPanel() {
             })
             .catch(console.error);
     };
+
+    const handleTypingChange = useCallback((isTyping: boolean) => {
+        if (!activeRoomId || connectionStatus !== 'connected') return;
+        wsService.sendTyping(activeRoomId, isTyping);
+    }, [activeRoomId, connectionStatus]);
 
     const getPinnedPreview = (message: ChatMessage): string => {
         const content = message.content?.trim();
@@ -408,8 +429,20 @@ export default function ChatPanel() {
                 )}
             </div>
 
+            {typingStatusText && (
+                <div className="chat-presence-typing" aria-live="polite">
+                    <span className="chat-presence-typing__dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                    </span>
+                    <span>{typingStatusText}</span>
+                </div>
+            )}
+
             <ChatInput
                 onSendText={handleSend}
+                onTypingChange={handleTypingChange}
                 onUploadAttachment={handleUploadAttachment}
                 disabled={connectionStatus !== 'connected'}
                 editMode={

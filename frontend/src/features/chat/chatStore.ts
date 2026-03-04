@@ -32,6 +32,7 @@ export interface ChatMessage {
 
 interface ChatState {
     messagesByRoom: Record<string, ChatMessage[]>;
+    typingByRoom: Record<string, Record<string, string>>;
     connectionStatus: ConnectionStatus;
     reconnectAttempt: number;
 
@@ -43,11 +44,16 @@ interface ChatState {
     setHistoryMessages: (roomId: string, msgs: ChatMessage[]) => void;
     setConnectionStatus: (s: ConnectionStatus) => void;
     setReconnectAttempt: (n: number) => void;
+    setTypingState: (roomId: string, userId: string, username: string, isTyping: boolean) => void;
+    clearTypingForRoom: (roomId: string) => void;
     clearRoom: (roomId: string) => void;
 }
 
+const typingExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 export const useChatStore = create<ChatState>((set) => ({
     messagesByRoom: {},
+    typingByRoom: {},
     connectionStatus: 'disconnected',
     reconnectAttempt: 0,
 
@@ -162,10 +168,68 @@ export const useChatStore = create<ChatState>((set) => ({
 
     setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
     setReconnectAttempt: (reconnectAttempt) => set({ reconnectAttempt }),
+    setTypingState: (roomId, userId, username, isTyping) =>
+        set((state) => {
+            const timerKey = `${roomId}:${userId}`;
+            const existingTimer = typingExpiryTimers.get(timerKey);
+            if (existingTimer) {
+                clearTimeout(existingTimer);
+                typingExpiryTimers.delete(timerKey);
+            }
+
+            const roomTyping = { ...(state.typingByRoom[roomId] ?? {}) };
+            if (isTyping) {
+                roomTyping[userId] = username;
+
+                const timer = setTimeout(() => {
+                    useChatStore.setState((innerState) => {
+                        const activeRoomTyping = { ...(innerState.typingByRoom[roomId] ?? {}) };
+                        delete activeRoomTyping[userId];
+                        const nextTypingByRoom = { ...innerState.typingByRoom };
+                        if (Object.keys(activeRoomTyping).length === 0) {
+                            delete nextTypingByRoom[roomId];
+                        } else {
+                            nextTypingByRoom[roomId] = activeRoomTyping;
+                        }
+                        return { typingByRoom: nextTypingByRoom };
+                    });
+                    typingExpiryTimers.delete(timerKey);
+                }, 2500);
+                typingExpiryTimers.set(timerKey, timer);
+            } else {
+                delete roomTyping[userId];
+            }
+
+            const nextTypingByRoom = { ...state.typingByRoom };
+            if (Object.keys(roomTyping).length === 0) {
+                delete nextTypingByRoom[roomId];
+            } else {
+                nextTypingByRoom[roomId] = roomTyping;
+            }
+
+            return { typingByRoom: nextTypingByRoom };
+        }),
+    clearTypingForRoom: (roomId) =>
+        set((state) => {
+            Object.keys(state.typingByRoom[roomId] ?? {}).forEach((userId) => {
+                const timerKey = `${roomId}:${userId}`;
+                const timer = typingExpiryTimers.get(timerKey);
+                if (timer) {
+                    clearTimeout(timer);
+                    typingExpiryTimers.delete(timerKey);
+                }
+            });
+            const nextTypingByRoom = { ...state.typingByRoom };
+            delete nextTypingByRoom[roomId];
+            return { typingByRoom: nextTypingByRoom };
+        }),
     clearRoom: (roomId) =>
         set((state) => {
-            const copy = { ...state.messagesByRoom };
-            delete copy[roomId];
-            return { messagesByRoom: copy };
+            const messagesCopy = { ...state.messagesByRoom };
+            delete messagesCopy[roomId];
+
+            const typingCopy = { ...state.typingByRoom };
+            delete typingCopy[roomId];
+            return { messagesByRoom: messagesCopy, typingByRoom: typingCopy };
         }),
 }));

@@ -6,6 +6,7 @@ import type { ChatMessage } from './chatStore';
 import { normalizeApiPath } from '../../shared/utils';
 import { usePresenceStore } from '../presence/presenceStore';
 import { useRoomStore } from '../rooms/roomStore';
+import { useAuthStore } from '../auth/authStore';
 
 const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN;
 const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http://localhost:9090'}/ws`;
@@ -13,6 +14,7 @@ const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http:
 class WebSocketService {
     private client: Client | null = null;
     private subscriptions: Map<string, StompSubscription> = new Map();
+    private typingSubscriptions: Map<string, StompSubscription> = new Map();
     private subscriptionRefCounts: Map<string, number> = new Map();
     private subscriptionQueue: Set<string> = new Set();
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -43,6 +45,7 @@ class WebSocketService {
                 this.subscriptionRefCounts.forEach((count, roomId) => {
                     if (count > 0) {
                         this.ensureRoomSubscription(roomId);
+                        this.ensureTypingSubscription(roomId);
                     }
                 });
                 this.subscriptionQueue.clear();
@@ -122,6 +125,11 @@ class WebSocketService {
         const nextRefCount = (this.subscriptionRefCounts.get(roomId) ?? 0) + 1;
         this.subscriptionRefCounts.set(roomId, nextRefCount);
         if (nextRefCount > 1) {
+            if (this.client?.active && this.client.connected) {
+                this.ensureTypingSubscription(roomId);
+            } else {
+                this.subscriptionQueue.add(roomId);
+            }
             return;
         }
 
@@ -131,6 +139,7 @@ class WebSocketService {
         }
 
         this.ensureRoomSubscription(roomId);
+        this.ensureTypingSubscription(roomId);
     }
 
     private ensureRoomSubscription(roomId: string) {
@@ -194,6 +203,26 @@ class WebSocketService {
         this.subscriptions.set(roomId, sub);
     }
 
+    private ensureTypingSubscription(roomId: string) {
+        if (!this.client?.active || !this.client.connected) return;
+        if (this.typingSubscriptions.has(roomId)) return;
+
+        const sub = this.client.subscribe(`/topic/room/${roomId}/typing`, (message: IMessage) => {
+            try {
+                const body = JSON.parse(message.body);
+                const userId = String(body.userId ?? '');
+                const username = String(body.username ?? 'Someone');
+                const isTyping = Boolean(body.typing);
+                if (!userId) return;
+                useChatStore.getState().setTypingState(roomId, userId, username, isTyping);
+            } catch (e) {
+                console.error('Failed to parse typing event:', e);
+            }
+        });
+
+        this.typingSubscriptions.set(roomId, sub);
+    }
+
     unsubscribeFromRoom(roomId: string) {
         const currentRefCount = this.subscriptionRefCounts.get(roomId) ?? 0;
         if (currentRefCount <= 1) {
@@ -208,6 +237,12 @@ class WebSocketService {
             sub.unsubscribe();
             this.subscriptions.delete(roomId);
         }
+        const typingSub = this.typingSubscriptions.get(roomId);
+        if (typingSub) {
+            typingSub.unsubscribe();
+            this.typingSubscriptions.delete(roomId);
+        }
+        useChatStore.getState().clearTypingForRoom(roomId);
         this.subscriptionQueue.delete(roomId);
     }
 
@@ -220,6 +255,30 @@ class WebSocketService {
         });
     }
 
+    sendTyping(roomId: string, typing: boolean) {
+        if (!this.client?.active || !this.client.connected) return;
+        const userId = useAuthStore.getState().userId;
+        const username = useAuthStore.getState().username;
+        const payload = JSON.stringify({
+            roomId,
+            userId,
+            username,
+            typing,
+        });
+
+        // Primary path via app mapping (server validates membership and re-broadcasts).
+        this.client.publish({
+            destination: `/app/typing/${roomId}`,
+            body: payload,
+        });
+
+        // Fallback path: broker-level topic publish in case app mapping fails.
+        this.client.publish({
+            destination: `/topic/room/${roomId}/typing`,
+            body: payload,
+        });
+    }
+
     disconnect() {
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -227,6 +286,8 @@ class WebSocketService {
         }
         this.subscriptions.forEach((sub) => sub.unsubscribe());
         this.subscriptions.clear();
+        this.typingSubscriptions.forEach((sub) => sub.unsubscribe());
+        this.typingSubscriptions.clear();
         this.subscriptionRefCounts.clear();
         this.subscriptionQueue.clear();
         if (this.presenceTopicSub) {

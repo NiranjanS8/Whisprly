@@ -2,6 +2,7 @@ import { type KeyboardEvent, type ChangeEvent, useState, useRef, useCallback, us
 
 interface Props {
     onSendText: (content: string) => void;
+    onTypingChange?: (isTyping: boolean) => void;
     onUploadAttachment: (file: File, content?: string, onProgress?: (progress: number) => void) => Promise<void>;
     disabled: boolean;
     editMode?: {
@@ -14,17 +15,26 @@ interface Props {
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_FILES = '.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov,.mp3,.wav,.m4a,.ogg,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
 
-export default function ChatInput({ onSendText, onUploadAttachment, disabled, editMode }: Props) {
+export default function ChatInput({ onSendText, onTypingChange, onUploadAttachment, disabled, editMode }: Props) {
     const [value, setValue] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const typingSentRef = useRef(false);
+
+    const notifyTyping = useCallback((isTyping: boolean) => {
+        if (typingSentRef.current === isTyping) return;
+        typingSentRef.current = isTyping;
+        onTypingChange?.(isTyping);
+    }, [onTypingChange]);
 
     useEffect(() => {
         if (editMode) {
             setValue(editMode.initialContent ?? '');
+            notifyTyping(false);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
                 textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
@@ -35,7 +45,20 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                 textareaRef.current.style.height = 'auto';
             }
         }
-    }, [editMode?.messageId]);
+    }, [editMode?.messageId, notifyTyping]);
+
+    useEffect(() => () => {
+        if (typingStopTimerRef.current) {
+            clearTimeout(typingStopTimerRef.current);
+        }
+        notifyTyping(false);
+    }, [notifyTyping]);
+
+    useEffect(() => {
+        if (disabled || uploading || !!editMode) {
+            notifyTyping(false);
+        }
+    }, [disabled, uploading, editMode, notifyTyping]);
 
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
@@ -44,6 +67,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                 if (value.trim() && !disabled && !uploading) {
                     onSendText(value.trim());
                     setValue('');
+                    notifyTyping(false);
                     if (textareaRef.current) {
                         textareaRef.current.style.height = 'auto';
                     }
@@ -54,7 +78,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                 editMode.onCancel();
             }
         },
-        [value, disabled, uploading, onSendText, editMode]
+        [value, disabled, uploading, onSendText, editMode, notifyTyping]
     );
 
     const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -63,6 +87,19 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
         const el = e.target;
         el.style.height = 'auto';
         el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+
+        const hasText = e.target.value.trim().length > 0;
+        if (!disabled && !uploading && !editMode && hasText) {
+            notifyTyping(true);
+            if (typingStopTimerRef.current) {
+                clearTimeout(typingStopTimerRef.current);
+            }
+            typingStopTimerRef.current = setTimeout(() => {
+                notifyTyping(false);
+            }, 1200);
+        } else {
+            notifyTyping(false);
+        }
     };
 
     const clearUploadState = () => {
@@ -93,6 +130,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
         try {
             await onUploadAttachment(file, value.trim() || undefined, setUploadProgress);
             setValue('');
+            notifyTyping(false);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -105,8 +143,6 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
             e.target.value = '';
         }
     };
-
-    const isTyping = value.trim().length > 0 && !disabled && !uploading;
 
     return (
         <div className="chat-input-container">
@@ -143,6 +179,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                 value={value}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
+                onBlur={() => notifyTyping(false)}
                 placeholder={disabled ? 'Reconnecting...' : 'Type a message...'}
                 disabled={disabled || uploading}
                 rows={1}
@@ -155,6 +192,7 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                     if (value.trim() && !disabled && !uploading) {
                         onSendText(value.trim());
                         setValue('');
+                        notifyTyping(false);
                     }
                 }}
                 disabled={!value.trim() || disabled || uploading}
@@ -180,16 +218,6 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                         </>
                     )}
                     {!uploading && uploadError && <span className="chat-upload-status__error">{uploadError}</span>}
-                </div>
-            )}
-            {isTyping && (
-                <div className="chat-typing-state" aria-live="polite">
-                    <span className="chat-typing-state__text">Typing</span>
-                    <span className="chat-typing-state__dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                    </span>
                 </div>
             )}
         </div>
