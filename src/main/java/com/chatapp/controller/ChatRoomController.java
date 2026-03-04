@@ -4,6 +4,7 @@ import com.chatapp.dto.AddMemberRequest;
 import com.chatapp.dto.ChatRoomRequest;
 import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.MemberResponse;
+import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.RoomSettingsRequest;
 import com.chatapp.dto.TransferOwnershipRequest;
 import com.chatapp.model.User;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +26,7 @@ import java.util.UUID;
 public class ChatRoomController {
 
     private final ChatRoomService chatRoomService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @PostMapping
     public ResponseEntity<ChatRoomResponse> createRoom(
@@ -99,6 +102,15 @@ public class ChatRoomController {
             @Valid @RequestBody RoomSettingsRequest request,
             @AuthenticationPrincipal User currentUser) {
         ChatRoomResponse response = chatRoomService.updateRoomSettings(roomId, request, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{roomId}/read")
+    public ResponseEntity<RoomUnreadUpdateResponse> markRoomAsRead(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        RoomUnreadUpdateResponse response = chatRoomService.markRoomAsRead(roomId, currentUser.getId());
+        messagingTemplate.convertAndSendToUser(currentUser.getId().toString(), "/queue/rooms/unread", response);
         return ResponseEntity.ok(response);
     }
 

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRoomStore } from './roomStore';
-import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member, pinRoom, unpinRoom } from './roomApi';
+import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member, pinRoom, unpinRoom, markRoomRead } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
@@ -151,6 +151,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         setRooms,
         addRoom,
         setActiveRoom,
+        setRoomUnreadCount,
         onlineCountsByRoom,
         setOnlineCountsByRoom,
         lastActivityByRoom,
@@ -334,6 +335,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         const aPinned = Boolean(a.pinnedAt);
         const bPinned = Boolean(b.pinnedAt);
         if (aPinned !== bPinned) return aPinned ? -1 : 1;
+        const aUnread = (a.unreadCount ?? 0) > 0;
+        const bUnread = (b.unreadCount ?? 0) > 0;
+        if (aUnread !== bUnread) return aUnread ? -1 : 1;
         return new Date(getRoomActivityAt(b)).getTime() - new Date(getRoomActivityAt(a)).getTime();
     };
 
@@ -483,6 +487,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const selectRoom = (room: Room) => {
         setActiveRoom(room.id);
+        setRoomUnreadCount(room.id, 0);
+        markRoomRead(room.id)
+            .then((update) => {
+                setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+            })
+            .catch(console.error);
         navigate('/chat');
         onClose();
     };
@@ -654,7 +664,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {directMessages.map((room) => (
                         <div
                             key={room.id}
-                            className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''}`}
+                            className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.id ? 'room-card--unread' : ''}`}
                             onClick={() => selectRoom(room)}
                             role="option"
                             aria-selected={activeRoomId === room.id}
@@ -671,6 +681,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div className="room-card__toprow">
                                 <span className="room-card__name">
                                     {getDirectMessageName(room)}
+                                    {(room.unreadCount ?? 0) > 0 && (
+                                        <span className="room-card__unread-badge" aria-label={`${room.unreadCount} unread`}>
+                                            {room.unreadCount! > 99 ? '99+' : room.unreadCount}
+                                        </span>
+                                    )}
                                     {room.pinnedAt && (
                                         <span className="room-card__pin" aria-label="Pinned">
                                             <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -729,7 +744,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {groupRooms.map((room) => (
                     <div
                         key={room.id}
-                        className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''}`}
+                        className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.id ? 'room-card--unread' : ''}`}
                         onClick={() => selectRoom(room)}
                         role="option"
                         aria-selected={activeRoomId === room.id}
@@ -746,6 +761,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div className="room-card__toprow">
                                 <span className="room-card__name">
                                     {room.name}
+                                    {(room.unreadCount ?? 0) > 0 && (
+                                        <span className="room-card__unread-badge" aria-label={`${room.unreadCount} unread`}>
+                                            {room.unreadCount! > 99 ? '99+' : room.unreadCount}
+                                        </span>
+                                    )}
                                     {room.pinnedAt && (
                                         <span className="room-card__pin" aria-label="Pinned">
                                             <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">

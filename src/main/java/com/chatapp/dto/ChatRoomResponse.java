@@ -28,5 +28,6 @@ public class ChatRoomResponse {
     private Boolean membersCanMessage;
     private Boolean membersCanAddMembers;
     private Integer selfDestructSeconds;
+    private Integer unreadCount;
     private Instant pinnedAt;
 }

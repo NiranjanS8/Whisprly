@@ -77,6 +77,9 @@ ALTER TABLE messages
 ALTER TABLE chat_room_members
     ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP;
 
+ALTER TABLE chat_room_members
+    ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP;
+
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP;
 

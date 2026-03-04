@@ -16,6 +16,7 @@ export interface Room {
     maxMembers?: number | null;
     allowedMediaTypes?: string | null;
     pinnedAt?: string | null;
+    unreadCount?: number;
 }
 
 export interface Member {
@@ -37,6 +38,13 @@ export interface RoomSettingsPayload {
     membersCanMessage?: boolean;
     membersCanAddMembers?: boolean;
     selfDestructSeconds?: number | null;
+}
+
+export interface RoomUnreadUpdate {
+    userId: string;
+    roomId: string;
+    unreadCount: number;
+    lastReadAt: string | null;
 }
 
 export async function fetchRooms(): Promise<Room[]> {
@@ -94,5 +102,10 @@ export async function pinRoom(roomId: string): Promise<Room> {
 
 export async function unpinRoom(roomId: string): Promise<Room> {
     const res = await httpClient.delete<Room>(`/rooms/${roomId}/pin`);
+    return res.data;
+}
+
+export async function markRoomRead(roomId: string): Promise<RoomUnreadUpdate> {
+    const res = await httpClient.post<RoomUnreadUpdate>(`/rooms/${roomId}/read`);
     return res.data;
 }

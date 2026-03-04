@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useRoomStore } from '../rooms/roomStore';
-import { fetchRoomMembers } from '../rooms/roomApi';
+import { fetchRoomMembers, markRoomRead } from '../rooms/roomApi';
 import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
@@ -47,6 +47,7 @@ export default function ChatPanel() {
     const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.id === s.activeRoomId));
     const onlineCountsByRoom = useRoomStore((s) => s.onlineCountsByRoom);
     const touchRoomActivity = useRoomStore((s) => s.touchRoomActivity);
+    const setRoomUnreadCount = useRoomStore((s) => s.setRoomUnreadCount);
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
     const connectionStatus = useChatStore((s) => s.connectionStatus);
@@ -80,6 +81,8 @@ export default function ChatPanel() {
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
     }, [activeRoomId, messagesByRoom]);
+
+    const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
 
     const pinnedMessage = useMemo(() => {
         const pinned = messages
@@ -129,6 +132,27 @@ export default function ChatPanel() {
             wsService.unsubscribeFromRoom(activeRoomId);
         };
     }, [activeRoomId, setHistoryMessages, touchRoomActivity]);
+
+    useEffect(() => {
+        if (!activeRoomId || connectionStatus !== 'connected') return;
+        markRoomRead(activeRoomId)
+            .then((update) => {
+                setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+            })
+            .catch(console.error);
+    }, [activeRoomId, connectionStatus, setRoomUnreadCount]);
+
+    useEffect(() => {
+        if (!activeRoomId || !latestMessage || latestMessage.senderId === userId || connectionStatus !== 'connected') return;
+        const timer = window.setTimeout(() => {
+            markRoomRead(activeRoomId)
+                .then((update) => {
+                    setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+                })
+                .catch(console.error);
+        }, 250);
+        return () => window.clearTimeout(timer);
+    }, [activeRoomId, latestMessage?.id, latestMessage?.senderId, connectionStatus, userId, setRoomUnreadCount]);
 
     useEffect(() => {
         if (!activeRoomId || !activeRoom || activeRoom.type !== 'DM' || !userId) {
@@ -441,32 +465,34 @@ export default function ChatPanel() {
                 )}
             </div>
 
-            {typingStatusText && (
-                <div className="chat-presence-typing" aria-live="polite">
-                    <span className="chat-presence-typing__dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                    </span>
-                    <span>{typingStatusText}</span>
-                </div>
-            )}
+            <div className="chat-composer">
+                {typingStatusText && (
+                    <div className="chat-presence-typing" aria-live="polite">
+                        <span className="chat-presence-typing__dots" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                        </span>
+                        <span>{typingStatusText}</span>
+                    </div>
+                )}
 
-            <ChatInput
-                onSendText={handleSend}
-                onTypingChange={handleTypingChange}
-                onUploadAttachment={handleUploadAttachment}
-                disabled={connectionStatus !== 'connected'}
-                editMode={
-                    editingMessage
-                        ? {
-                            messageId: editingMessage.id ?? '',
-                            initialContent: editingMessage.content,
-                            onCancel: handleCancelEdit,
-                        }
-                        : undefined
-                }
-            />
+                <ChatInput
+                    onSendText={handleSend}
+                    onTypingChange={handleTypingChange}
+                    onUploadAttachment={handleUploadAttachment}
+                    disabled={connectionStatus !== 'connected'}
+                    editMode={
+                        editingMessage
+                            ? {
+                                messageId: editingMessage.id ?? '',
+                                initialContent: editingMessage.content,
+                                onCancel: handleCancelEdit,
+                            }
+                            : undefined
+                    }
+                />
+            </div>
         </div>
     );
 }

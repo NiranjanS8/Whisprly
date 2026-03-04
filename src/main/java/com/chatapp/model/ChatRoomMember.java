@@ -38,6 +38,9 @@ public class ChatRoomMember {
     @Column(name = "pinned_at")
     private Instant pinnedAt;
 
+    @Column(name = "last_read_at")
+    private Instant lastReadAt;
+
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;

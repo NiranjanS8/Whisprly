@@ -13,6 +13,7 @@ interface RoomState {
     setOnlineCountsByRoom: (onlineCountsByRoom: Record<string, number>) => void;
     setLastActivityByRoom: (lastActivityByRoom: Record<string, string>) => void;
     touchRoomActivity: (roomId: string, activityAt: string) => void;
+    setRoomUnreadCount: (roomId: string, unreadCount: number) => void;
 }
 
 export const useRoomStore = create<RoomState>()(
@@ -77,6 +78,15 @@ export const useRoomStore = create<RoomState>()(
                         },
                     };
                 }),
+
+            setRoomUnreadCount: (roomId, unreadCount) =>
+                set((state) => ({
+                    rooms: state.rooms.map((room) =>
+                        room.id === roomId
+                            ? { ...room, unreadCount }
+                            : room
+                    ),
+                })),
         }),
         {
             name: 'whisprly-room-storage',

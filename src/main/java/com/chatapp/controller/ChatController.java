@@ -2,9 +2,11 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.ChatMessageRequest;
 import com.chatapp.dto.ChatMessageResponse;
+import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.TypingEventRequest;
 import com.chatapp.dto.TypingEventResponse;
 import com.chatapp.repository.ChatRoomMemberRepository;
+import com.chatapp.service.ChatRoomService;
 import com.chatapp.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class ChatController {
     private final MessageService messageService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatRoomMemberRepository memberRepository;
+    private final ChatRoomService chatRoomService;
 
     @MessageMapping("/chat/{roomId}")
     public void handleMessage(
@@ -48,6 +51,14 @@ public class ChatController {
 
         // Transaction committed — safe to broadcast
         messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+
+        for (RoomUnreadUpdateResponse unreadUpdate : chatRoomService.getUnreadUpdatesForRoom(roomId)) {
+            if (unreadUpdate.getUserId() == null) continue;
+            messagingTemplate.convertAndSendToUser(
+                    unreadUpdate.getUserId().toString(),
+                    "/queue/rooms/unread",
+                    unreadUpdate);
+        }
     }
 
     @MessageMapping("/typing/{roomId}")

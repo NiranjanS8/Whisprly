@@ -25,6 +25,14 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     Optional<Message> findByIdAndRoomIdWithSender(@Param("messageId") UUID messageId, @Param("roomId") UUID roomId);
 
     @Query("""
+            SELECT COUNT(m) FROM Message m
+            WHERE m.room.id = :roomId
+            AND m.sender.id <> :userId
+            AND m.createdAt > :since
+            """)
+    long countUnreadMessages(@Param("roomId") UUID roomId, @Param("userId") UUID userId, @Param("since") Instant since);
+
+    @Query("""
             SELECT m FROM Message m
             JOIN FETCH m.sender
             JOIN FETCH m.room

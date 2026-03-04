@@ -21,6 +21,7 @@ class WebSocketService {
     private currentToken: string | null = null;
     private presenceTopicSub: StompSubscription | null = null;
     private presenceQueueSub: StompSubscription | null = null;
+    private unreadQueueSub: StompSubscription | null = null;
 
     connect(token: string) {
         if (this.client?.active) {
@@ -40,6 +41,7 @@ class WebSocketService {
                 useChatStore.getState().setConnectionStatus('connected');
                 useChatStore.getState().setReconnectAttempt(0);
                 this.subscribePresenceChannels();
+                this.subscribeUnreadChannel();
 
                 // Re-subscribe active room topics after reconnect.
                 this.subscriptionRefCounts.forEach((count, roomId) => {
@@ -101,6 +103,23 @@ class WebSocketService {
         } catch (e) {
             console.error('Failed to parse presence snapshot:', e);
         }
+    }
+
+    private subscribeUnreadChannel() {
+        if (!this.client?.connected) return;
+        if (this.unreadQueueSub) return;
+
+        this.unreadQueueSub = this.client.subscribe('/user/queue/rooms/unread', (message: IMessage) => {
+            try {
+                const body = JSON.parse(message.body);
+                const roomId = String(body.roomId ?? '');
+                const unreadCount = Number(body.unreadCount ?? 0);
+                if (!roomId) return;
+                useRoomStore.getState().setRoomUnreadCount(roomId, Number.isNaN(unreadCount) ? 0 : unreadCount);
+            } catch (error) {
+                console.error('Failed to parse unread update:', error);
+            }
+        });
     }
 
     private scheduleReconnect() {
@@ -298,6 +317,10 @@ class WebSocketService {
         if (this.presenceQueueSub) {
             this.presenceQueueSub.unsubscribe();
             this.presenceQueueSub = null;
+        }
+        if (this.unreadQueueSub) {
+            this.unreadQueueSub.unsubscribe();
+            this.unreadQueueSub = null;
         }
         this.currentToken = null;
 
