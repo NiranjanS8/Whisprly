@@ -7,7 +7,17 @@ import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { wsService } from './websocket';
-import { deleteMessage, editMessage, fetchMessages, uploadAttachmentMessage, pinMessage, unpinMessage } from './messageApi';
+import {
+    deleteMessage,
+    editMessage,
+    fetchMessageById,
+    fetchMessages,
+    pinMessage,
+    searchMessagesInRoom,
+    type MessageSearchResult,
+    unpinMessage,
+    uploadAttachmentMessage,
+} from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
 import { usePresenceStore } from '../presence/presenceStore';
@@ -41,6 +51,12 @@ function formatSelfDestructLabel(seconds: number): string {
     return `${Math.round(seconds / 3600)}h`;
 }
 
+function formatSearchResultTime(dateString: string): string {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+}
+
 export default function ChatPanel() {
     const navigate = useNavigate();
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
@@ -55,6 +71,8 @@ export default function ChatPanel() {
     const typingByRoom = useChatStore((s) => s.typingByRoom);
     const appendMessage = useChatStore((s) => s.appendMessage);
     const setHistoryMessages = useChatStore((s) => s.setHistoryMessages);
+    const jumpTarget = useChatStore((s) => s.jumpTarget);
+    const clearJumpTarget = useChatStore((s) => s.clearJumpTarget);
     const failMessage = useChatStore((s) => s.failMessage);
     const isUserOnline = usePresenceStore((s) => s.isUserOnline);
 
@@ -63,7 +81,14 @@ export default function ChatPanel() {
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+    const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
+    const [roomSearchOpen, setRoomSearchOpen] = useState(false);
+    const [roomSearchQuery, setRoomSearchQuery] = useState('');
+    const [roomSearchResults, setRoomSearchResults] = useState<MessageSearchResult[]>([]);
+    const [roomSearchLoading, setRoomSearchLoading] = useState(false);
+    const [activeSearchMatchIndex, setActiveSearchMatchIndex] = useState(0);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
+    const roomSearchRef = useRef<HTMLDivElement | null>(null);
     const [atBottom, setAtBottom] = useState(true);
 
     const isDmRoom = activeRoom?.type === 'DM';
@@ -199,6 +224,12 @@ export default function ChatPanel() {
         setHeaderMenuOpen(false);
         setEditingMessage(null);
         setHighlightedMessageId(null);
+        setPendingJumpMessageId(null);
+        setRoomSearchOpen(false);
+        setRoomSearchQuery('');
+        setRoomSearchResults([]);
+        setRoomSearchLoading(false);
+        setActiveSearchMatchIndex(0);
     }, [activeRoomId]);
 
     useEffect(() => {
@@ -206,6 +237,69 @@ export default function ChatPanel() {
         const timer = window.setTimeout(() => setHighlightedMessageId(null), 1400);
         return () => window.clearTimeout(timer);
     }, [highlightedMessageId]);
+
+    useEffect(() => {
+        if (!roomSearchOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (roomSearchRef.current && !roomSearchRef.current.contains(event.target as Node)) {
+                setRoomSearchOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [roomSearchOpen]);
+
+    useEffect(() => {
+        if (!roomSearchOpen || !activeRoomId) return;
+        const query = roomSearchQuery.trim();
+        if (query.length < 2) {
+            setRoomSearchResults([]);
+            setRoomSearchLoading(false);
+            setActiveSearchMatchIndex(0);
+            return;
+        }
+
+        setRoomSearchLoading(true);
+        const timer = window.setTimeout(() => {
+            searchMessagesInRoom(activeRoomId, query, 50)
+                .then((results) => {
+                    setRoomSearchResults(results);
+                    setActiveSearchMatchIndex(results.length > 0 ? 0 : 0);
+                })
+                .catch(() => setRoomSearchResults([]))
+                .finally(() => setRoomSearchLoading(false));
+        }, 180);
+
+        return () => window.clearTimeout(timer);
+    }, [roomSearchOpen, roomSearchQuery, activeRoomId, latestMessage?.id]);
+
+    useEffect(() => {
+        if (!pendingJumpMessageId) return;
+        const targetIndex = messages.findIndex((msg) => msg.id === pendingJumpMessageId);
+        if (targetIndex < 0) return;
+        virtuosoRef.current?.scrollToIndex({
+            index: targetIndex,
+            align: 'center',
+            behavior: 'smooth',
+        });
+        setHighlightedMessageId(pendingJumpMessageId);
+        setPendingJumpMessageId(null);
+    }, [pendingJumpMessageId, messages]);
+
+    useEffect(() => {
+        if (!jumpTarget || !activeRoomId) return;
+        if (jumpTarget.roomId !== activeRoomId) return;
+        setPendingJumpMessageId(jumpTarget.messageId);
+        const exists = messages.some((msg) => msg.id === jumpTarget.messageId);
+        if (!exists) {
+            fetchMessageById(activeRoomId, jumpTarget.messageId)
+                .then((message) => {
+                    useChatStore.getState().upsertMessage(activeRoomId, message);
+                })
+                .catch(console.error);
+        }
+        clearJumpTarget();
+    }, [jumpTarget, activeRoomId, clearJumpTarget, messages]);
 
     const handleSend = (content: string) => {
         if (!activeRoomId || !userId || !username) return;
@@ -317,6 +411,32 @@ export default function ChatPanel() {
         setHighlightedMessageId(pinnedMessage.id);
     };
 
+    const jumpToMessageById = useCallback((messageId: string) => {
+        if (!activeRoomId) return;
+        setPendingJumpMessageId(messageId);
+        const exists = messages.some((msg) => msg.id === messageId);
+        if (exists) return;
+        fetchMessageById(activeRoomId, messageId)
+            .then((message) => {
+                useChatStore.getState().upsertMessage(activeRoomId, message);
+            })
+            .catch(console.error);
+    }, [activeRoomId, messages]);
+
+    const handleSelectSearchResult = (result: MessageSearchResult, index: number) => {
+        setActiveSearchMatchIndex(index);
+        jumpToMessageById(result.messageId);
+        setRoomSearchOpen(false);
+    };
+
+    const handleCycleSearchResult = (direction: 1 | -1) => {
+        if (roomSearchResults.length === 0) return;
+        const total = roomSearchResults.length;
+        const next = (activeSearchMatchIndex + direction + total) % total;
+        setActiveSearchMatchIndex(next);
+        jumpToMessageById(roomSearchResults[next].messageId);
+    };
+
     if (!activeRoomId || !activeRoom) {
         return (
             <div className="chat-panel chat-panel--empty">
@@ -363,6 +483,81 @@ export default function ChatPanel() {
                     </div>
                 </div>
                 <div className="chat-header__actions">
+                    <div className="chat-header__search" ref={roomSearchRef}>
+                        <button
+                            type="button"
+                            className={`chat-header__search-btn ${roomSearchOpen ? 'is-open' : ''}`}
+                            aria-label="Search in this conversation"
+                            aria-expanded={roomSearchOpen}
+                            onClick={() => {
+                                setRoomSearchOpen((prev) => !prev);
+                                setHeaderMenuOpen(false);
+                            }}
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" stroke="currentColor" strokeWidth="2" fill="none" />
+                                <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                        </button>
+                        {roomSearchResults.length > 0 && (
+                            <div className="chat-header__search-nav" aria-label="Search matches">
+                                <button
+                                    type="button"
+                                    className="chat-header__search-nav-btn"
+                                    onClick={() => handleCycleSearchResult(-1)}
+                                    aria-label="Previous match"
+                                >
+                                    ↑
+                                </button>
+                                <span className="chat-header__search-nav-count">
+                                    {activeSearchMatchIndex + 1}/{roomSearchResults.length}
+                                </span>
+                                <button
+                                    type="button"
+                                    className="chat-header__search-nav-btn"
+                                    onClick={() => handleCycleSearchResult(1)}
+                                    aria-label="Next match"
+                                >
+                                    ↓
+                                </button>
+                            </div>
+                        )}
+                        {roomSearchOpen && (
+                            <div className="chat-header__search-popover" role="dialog" aria-label="Search this conversation">
+                                <div className="chat-header__search-input-wrap">
+                                    <input
+                                        type="text"
+                                        value={roomSearchQuery}
+                                        onChange={(e) => setRoomSearchQuery(e.target.value)}
+                                        placeholder="Search in this chat..."
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="chat-header__search-results">
+                                    {roomSearchLoading && <div className="chat-header__search-empty">Searching...</div>}
+                                    {!roomSearchLoading && roomSearchQuery.trim().length < 2 && (
+                                        <div className="chat-header__search-empty">Type at least 2 characters</div>
+                                    )}
+                                    {!roomSearchLoading && roomSearchQuery.trim().length >= 2 && roomSearchResults.length === 0 && (
+                                        <div className="chat-header__search-empty">No matches in this conversation</div>
+                                    )}
+                                    {roomSearchResults.map((result, index) => (
+                                        <button
+                                            key={result.messageId}
+                                            type="button"
+                                            className={`chat-header__search-item ${index === activeSearchMatchIndex ? 'is-active' : ''}`}
+                                            onClick={() => handleSelectSearchResult(result, index)}
+                                        >
+                                            <span className="chat-header__search-item-preview">{result.preview}</span>
+                                            <span className="chat-header__search-item-meta">
+                                                {result.senderFullName?.trim() || result.senderUsername} · {formatSearchResultTime(result.createdAt)}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     {!isDmRoom && (
                         <div className="chat-header__menu-wrap">
                             <button

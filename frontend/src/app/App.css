@@ -97,6 +97,113 @@
     position: relative;
 }
 
+.header-search {
+    position: relative;
+}
+
+.header-search-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #d8dee7;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.header-search-btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+.header-search-btn:hover,
+.header-search-btn.is-open {
+    border-color: rgba(45, 108, 223, 0.55);
+    background: rgba(45, 108, 223, 0.12);
+}
+
+.header-search-popover {
+    position: absolute;
+    top: 44px;
+    right: 0;
+    width: min(420px, calc(100vw - 24px));
+    background: #202730;
+    border: 1px solid #313b49;
+    border-radius: 12px;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+    z-index: 70;
+    overflow: hidden;
+}
+
+.header-search-input-wrap {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.header-search-input-wrap input {
+    width: 100%;
+    border: 1px solid #334154;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #e5ebf5;
+    background: #131a23;
+}
+
+.header-search-input-wrap input:focus {
+    outline: none;
+    border-color: rgba(45, 108, 223, 0.6);
+}
+
+.header-search-results {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.header-search-empty {
+    padding: 12px;
+    font-size: 12px;
+    color: #9aa8bb;
+}
+
+.header-search-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    border-radius: 9px;
+    padding: 9px 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.header-search-item:hover {
+    background: #2a3441;
+}
+
+.header-search-item__preview {
+    color: #e6ecf6;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.header-search-item__meta {
+    font-size: 11px;
+    color: #95a3b7;
+}
+
 .app-body--sidebar-closed .sidebar {
     width: 0;
     border-right-color: transparent;

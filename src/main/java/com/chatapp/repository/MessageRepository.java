@@ -19,6 +19,40 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     @Query("SELECT m FROM Message m JOIN FETCH m.sender WHERE m.room.id = :roomId ORDER BY m.createdAt DESC")
     Page<Message> findByRoomIdWithSender(@Param("roomId") UUID roomId, Pageable pageable);
 
+    @Query("""
+            SELECT m FROM Message m
+            JOIN FETCH m.sender
+            JOIN FETCH m.room
+            WHERE m.deletedAt IS NULL
+            AND COALESCE(TRIM(m.content), '') <> ''
+            AND LOWER(m.content) LIKE LOWER(CONCAT('%', :query, '%'))
+            AND EXISTS (
+                SELECT 1 FROM ChatRoomMember mem
+                WHERE mem.room.id = m.room.id
+                AND mem.user.id = :userId
+            )
+            ORDER BY m.createdAt DESC
+            """)
+    Page<Message> searchMessagesForUser(
+            @Param("userId") UUID userId,
+            @Param("query") String query,
+            Pageable pageable);
+
+    @Query("""
+            SELECT m FROM Message m
+            JOIN FETCH m.sender
+            JOIN FETCH m.room
+            WHERE m.room.id = :roomId
+            AND m.deletedAt IS NULL
+            AND COALESCE(TRIM(m.content), '') <> ''
+            AND LOWER(m.content) LIKE LOWER(CONCAT('%', :query, '%'))
+            ORDER BY m.createdAt DESC
+            """)
+    Page<Message> searchMessagesInRoom(
+            @Param("roomId") UUID roomId,
+            @Param("query") String query,
+            Pageable pageable);
+
     Optional<Message> findByIdempotencyKey(UUID idempotencyKey);
 
     @Query("SELECT m FROM Message m JOIN FETCH m.sender JOIN FETCH m.room WHERE m.id = :messageId AND m.room.id = :roomId")

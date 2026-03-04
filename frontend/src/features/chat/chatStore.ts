@@ -36,6 +36,7 @@ interface ChatState {
     typingByRoom: Record<string, Record<string, string>>;
     connectionStatus: ConnectionStatus;
     reconnectAttempt: number;
+    jumpTarget: { roomId: string; messageId: string } | null;
 
     appendMessage: (roomId: string, msg: ChatMessage) => void;
     upsertMessage: (roomId: string, msg: ChatMessage) => void;
@@ -48,6 +49,8 @@ interface ChatState {
     setTypingState: (roomId: string, userId: string, username: string, isTyping: boolean) => void;
     clearTypingForRoom: (roomId: string) => void;
     clearRoom: (roomId: string) => void;
+    setJumpTarget: (roomId: string, messageId: string) => void;
+    clearJumpTarget: () => void;
 }
 
 const typingExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -57,6 +60,7 @@ export const useChatStore = create<ChatState>((set) => ({
     typingByRoom: {},
     connectionStatus: 'disconnected',
     reconnectAttempt: 0,
+    jumpTarget: null,
 
     appendMessage: (roomId, msg) =>
         set((state) => {
@@ -233,4 +237,7 @@ export const useChatStore = create<ChatState>((set) => ({
             delete typingCopy[roomId];
             return { messagesByRoom: messagesCopy, typingByRoom: typingCopy };
         }),
+    setJumpTarget: (roomId, messageId) =>
+        set({ jumpTarget: { roomId, messageId } }),
+    clearJumpTarget: () => set({ jumpTarget: null }),
 }));

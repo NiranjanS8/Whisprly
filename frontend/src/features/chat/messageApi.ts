@@ -34,6 +34,18 @@ interface MessageDto {
     roomId: string;
 }
 
+export interface MessageSearchResult {
+    messageId: string;
+    roomId: string;
+    roomName: string;
+    roomType: string;
+    senderId: string;
+    senderUsername: string;
+    senderFullName?: string | null;
+    preview: string;
+    createdAt: string;
+}
+
 function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
     const normalizedAttachment = m.attachment
         ? { ...m.attachment, url: normalizeApiPath(m.attachment.url) }
@@ -64,6 +76,25 @@ export async function fetchMessages(roomId: string, page = 0, size = 50): Promis
         params: { page, size },
     });
     return res.data.content.map((m) => toChatMessage(m, roomId));
+}
+
+export async function fetchMessageById(roomId: string, messageId: string): Promise<ChatMessage> {
+    const res = await httpClient.get<MessageDto>(`/rooms/${roomId}/messages/${messageId}`);
+    return toChatMessage(res.data, roomId);
+}
+
+export async function searchMessagesGlobal(query: string, limit = 20): Promise<MessageSearchResult[]> {
+    const res = await httpClient.get<MessageSearchResult[]>('/rooms/messages/search', {
+        params: { query, limit },
+    });
+    return res.data;
+}
+
+export async function searchMessagesInRoom(roomId: string, query: string, limit = 20): Promise<MessageSearchResult[]> {
+    const res = await httpClient.get<MessageSearchResult[]>(`/rooms/${roomId}/messages/search`, {
+        params: { query, limit },
+    });
+    return res.data;
 }
 
 export async function uploadAttachmentMessage(

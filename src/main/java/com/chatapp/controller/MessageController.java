@@ -2,6 +2,7 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.MessageEditRequest;
+import com.chatapp.dto.MessageSearchResultResponse;
 import com.chatapp.model.AttachmentCategory;
 import com.chatapp.model.User;
 import com.chatapp.service.MessageService;
@@ -19,6 +20,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -36,6 +38,34 @@ public class MessageController {
             @AuthenticationPrincipal User currentUser) {
         Page<ChatMessageResponse> messages = messageService.getMessageHistory(roomId, currentUser.getId(), page, size);
         return ResponseEntity.ok(messages);
+    }
+
+    @GetMapping("/{roomId}/messages/{messageId}")
+    public ResponseEntity<ChatMessageResponse> getMessage(
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatMessageResponse message = messageService.getMessage(roomId, messageId, currentUser.getId());
+        return ResponseEntity.ok(message);
+    }
+
+    @GetMapping("/messages/search")
+    public ResponseEntity<List<MessageSearchResultResponse>> searchGlobal(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "20") int limit,
+            @AuthenticationPrincipal User currentUser) {
+        List<MessageSearchResultResponse> results = messageService.searchMessagesGlobal(currentUser.getId(), query, limit);
+        return ResponseEntity.ok(results);
+    }
+
+    @GetMapping("/{roomId}/messages/search")
+    public ResponseEntity<List<MessageSearchResultResponse>> searchInRoom(
+            @PathVariable UUID roomId,
+            @RequestParam String query,
+            @RequestParam(defaultValue = "20") int limit,
+            @AuthenticationPrincipal User currentUser) {
+        List<MessageSearchResultResponse> results = messageService.searchMessagesInRoom(roomId, currentUser.getId(), query, limit);
+        return ResponseEntity.ok(results);
     }
 
     @PostMapping(path = "/{roomId}/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

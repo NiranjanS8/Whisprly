@@ -3,6 +3,7 @@ package com.chatapp.service;
 import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.AttachmentResponse;
 import com.chatapp.exception.ResourceNotFoundException;
+import com.chatapp.dto.MessageSearchResultResponse;
 import com.chatapp.model.AttachmentCategory;
 import com.chatapp.model.ChatRoom;
 import com.chatapp.model.ChatRoomMember;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -133,6 +135,39 @@ public class MessageService {
 
         return messageRepository.findByRoomIdWithSender(roomId, PageRequest.of(page, size))
                 .map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public ChatMessageResponse getMessage(UUID roomId, UUID messageId, UUID userId) {
+        if (!memberRepository.existsByRoomIdAndUserId(roomId, userId)) {
+            throw new AccessDeniedException("You are not a member of this room");
+        }
+        Message message = messageRepository.findByIdAndRoomIdWithSender(messageId, roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+        return toResponse(message);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MessageSearchResultResponse> searchMessagesGlobal(UUID userId, String query, int limit) {
+        String normalizedQuery = normalizeQuery(query);
+        int normalizedLimit = normalizeLimit(limit);
+        return messageRepository.searchMessagesForUser(userId, normalizedQuery, PageRequest.of(0, normalizedLimit))
+                .stream()
+                .map(message -> toSearchResponse(message, normalizedQuery))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MessageSearchResultResponse> searchMessagesInRoom(UUID roomId, UUID userId, String query, int limit) {
+        if (!memberRepository.existsByRoomIdAndUserId(roomId, userId)) {
+            throw new AccessDeniedException("You are not a member of this room");
+        }
+        String normalizedQuery = normalizeQuery(query);
+        int normalizedLimit = normalizeLimit(limit);
+        return messageRepository.searchMessagesInRoom(roomId, normalizedQuery, PageRequest.of(0, normalizedLimit))
+                .stream()
+                .map(message -> toSearchResponse(message, normalizedQuery))
+                .toList();
     }
 
     @Transactional
@@ -354,5 +389,67 @@ public class MessageService {
             String contentType,
             AttachmentCategory category
     ) {
+    }
+
+    private String normalizeQuery(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            throw new IllegalArgumentException("Search query is required");
+        }
+        return query.trim();
+    }
+
+    private int normalizeLimit(int limit) {
+        if (limit <= 0) {
+            return 20;
+        }
+        return Math.min(limit, 100);
+    }
+
+    private MessageSearchResultResponse toSearchResponse(Message message, String query) {
+        String content = message.getContent() == null ? "" : message.getContent();
+        String preview = buildPreview(content, query, 120);
+        return MessageSearchResultResponse.builder()
+                .messageId(message.getId())
+                .roomId(message.getRoom().getId())
+                .roomName(message.getRoom().getName())
+                .roomType(message.getRoom().getType().name())
+                .senderId(message.getSender().getId())
+                .senderUsername(message.getSender().getUsername())
+                .senderFullName(message.getSender().getFullName())
+                .preview(preview)
+                .createdAt(message.getCreatedAt())
+                .build();
+    }
+
+    private String buildPreview(String content, String query, int maxLength) {
+        if (content.isBlank()) {
+            return "(no text content)";
+        }
+        String normalizedContent = content.replace('\n', ' ').trim();
+        if (normalizedContent.length() <= maxLength) {
+            return normalizedContent;
+        }
+        String lowerContent = normalizedContent.toLowerCase();
+        String lowerQuery = query.toLowerCase();
+        int matchIndex = lowerContent.indexOf(lowerQuery);
+        if (matchIndex < 0) {
+            return normalizedContent.substring(0, maxLength - 3) + "...";
+        }
+
+        int context = Math.max(20, maxLength / 2);
+        int start = Math.max(0, matchIndex - context);
+        int end = Math.min(normalizedContent.length(), start + maxLength);
+        if (end - start < maxLength && start > 0) {
+            start = Math.max(0, end - maxLength);
+        }
+
+        String snippet = normalizedContent.substring(start, end);
+        if (start > 0) {
+            snippet = "..." + snippet;
+        }
+        if (end < normalizedContent.length()) {
+            snippet = snippet + "...";
+        }
+        return snippet;
     }
 }
