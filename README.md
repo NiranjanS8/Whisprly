@@ -209,18 +209,3 @@ src/main/resources/application.properties
 -   Modern messaging features such as pinning, presence, unread
     counters, and ephemeral messaging
 
-------------------------------------------------------------------------
-
-# Future Improvements
-
--   Message reactions
--   Push notifications
--   Advanced room roles and permissions
--   Mobile client
--   Distributed message broker support
-
-------------------------------------------------------------------------
-
-# License
-
-MIT License
