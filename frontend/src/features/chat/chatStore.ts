@@ -20,6 +20,7 @@ export interface ChatMessage {
     senderId: string;
     senderUsername: string;
     senderFullName?: string | null;
+    senderAvatarUrl?: string | null;
     createdAt: string;
     editedAt?: string | null;
     deletedAt?: string | null;

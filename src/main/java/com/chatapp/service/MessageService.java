@@ -371,6 +371,7 @@ public class MessageService {
                 .senderId(message.getSender().getId())
                 .senderUsername(message.getSender().getUsername())
                 .senderFullName(message.getSender().getFullName())
+                .senderAvatarUrl(message.getSender().getAvatarUrl())
                 .content(message.getContent())
                 .attachment(attachment)
                 .createdAt(message.getCreatedAt())

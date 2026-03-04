@@ -118,7 +118,7 @@ const MessageBubble = React.memo(function MessageBubble({
     onTogglePin,
 }: Props) {
     const senderDisplayName = message.senderFullName?.trim() || message.senderUsername;
-    const resolvedAvatarUrl = resolveMediaUrl(avatarUrl ?? null);
+    const resolvedAvatarUrl = resolveMediaUrl(message.senderAvatarUrl ?? avatarUrl ?? null);
     const attachment = message.attachment;
     const attachmentUrl = attachment ? normalizeApiPath(attachment.url) : '';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -126,6 +126,7 @@ const MessageBubble = React.memo(function MessageBubble({
     const [previewLoading, setPreviewLoading] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [nowTs, setNowTs] = useState(() => Date.now());
+    const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
     const isImage = attachment?.category === 'IMAGE';
     const isVideo = attachment?.category === 'VIDEO';
     const isVisualPreview = isImage || isVideo;
@@ -197,6 +198,10 @@ const MessageBubble = React.memo(function MessageBubble({
         };
     }, [imageViewerOpen]);
 
+    useEffect(() => {
+        setAvatarLoadFailed(false);
+    }, [resolvedAvatarUrl, message.senderId, message.id]);
+
     const fetchAttachmentBlob = async () => {
         if (!attachment) return null;
         const res = await httpClient.get<Blob>(attachmentUrl, { responseType: 'blob' });
@@ -233,7 +238,15 @@ const MessageBubble = React.memo(function MessageBubble({
             >
                 {!isOwn && showAvatar && (
                     <div className="msg__avatar" title={senderDisplayName}>
-                        {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${senderDisplayName} avatar`} /> : getInitials(senderDisplayName)}
+                        {resolvedAvatarUrl && !avatarLoadFailed ? (
+                            <img
+                                src={resolvedAvatarUrl}
+                                alt={`${senderDisplayName} avatar`}
+                                onError={() => setAvatarLoadFailed(true)}
+                            />
+                        ) : (
+                            getInitials(senderDisplayName)
+                        )}
                     </div>
                 )}
                 {!isOwn && !showAvatar && <div className="msg__avatar-spacer" aria-hidden="true" />}

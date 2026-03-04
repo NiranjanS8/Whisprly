@@ -1158,7 +1158,7 @@
 }
 
 .msg__body {
-    max-width: clamp(280px, 58ch, 700px);
+    max-width: min(78%, 620px);
 }
 
 .msg__bubble {
@@ -1289,7 +1289,7 @@
     }
 
     .msg__body {
-        max-width: min(86vw, 560px);
+        max-width: min(84vw, 520px);
     }
 }
 

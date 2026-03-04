@@ -78,6 +78,7 @@ export default function ChatPanel() {
 
     const [loading, setLoading] = useState(false);
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
+    const [headerAvatarLoadFailed, setHeaderAvatarLoadFailed] = useState(false);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -231,6 +232,10 @@ export default function ChatPanel() {
         setRoomSearchLoading(false);
         setActiveSearchMatchIndex(0);
     }, [activeRoomId]);
+
+    useEffect(() => {
+        setHeaderAvatarLoadFailed(false);
+    }, [activeRoomId, dmParticipant?.avatarUrl, activeRoom?.avatarUrl]);
 
     useEffect(() => {
         if (!highlightedMessageId) return;
@@ -450,7 +455,9 @@ export default function ChatPanel() {
     }
 
     const headerName = isDmRoom ? (dmParticipant?.fullName?.trim() || dmParticipant?.username || dmNameFallback) : activeRoom.name;
-    const headerAvatar = isDmRoom ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null) : null;
+    const headerAvatar = isDmRoom
+        ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null)
+        : resolveMediaUrl(activeRoom.avatarUrl ?? null);
     const dmOnline = isUserOnline(dmParticipant?.id);
     const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
     const selfDestructSeconds = activeRoom?.selfDestructSeconds ?? null;
@@ -463,8 +470,12 @@ export default function ChatPanel() {
             <header className="chat-header">
                 <div className="chat-header__identity">
                     <div className="chat-header__avatar" aria-hidden="true">
-                        {headerAvatar ? (
-                            <img src={headerAvatar} alt="" />
+                        {headerAvatar && !headerAvatarLoadFailed ? (
+                            <img
+                                src={headerAvatar}
+                                alt=""
+                                onError={() => setHeaderAvatarLoadFailed(true)}
+                            />
                         ) : (
                             getInitials(headerName)
                         )}

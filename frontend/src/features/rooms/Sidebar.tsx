@@ -11,7 +11,7 @@ import { useChatStore } from '../chat/chatStore';
 import { fetchMessages } from '../chat/messageApi';
 import { wsService } from '../chat/websocket';
 import { usePresenceStore } from '../presence/presenceStore';
-import { getInitials } from '../../shared/utils';
+import { getInitials, resolveMediaUrl } from '../../shared/utils';
 import './sidebar.css';
 
 interface SidebarProps {
@@ -184,7 +184,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [mutedRoomIds, setMutedRoomIds] = useState<Record<string, boolean>>({});
     const [blockedDmRoomIds, setBlockedDmRoomIds] = useState<Record<string, boolean>>({});
     const [dmDisplayNameByRoom, setDmDisplayNameByRoom] = useState<Record<string, string>>({});
+    const [dmAvatarUrlByRoom, setDmAvatarUrlByRoom] = useState<Record<string, string | null>>({});
     const [roomMemberIdsByRoom, setRoomMemberIdsByRoom] = useState<Record<string, string[]>>({});
+    const [avatarLoadErrorByRoom, setAvatarLoadErrorByRoom] = useState<Record<string, string>>({});
 
     useEffect(() => {
         fetchRooms().then(setRooms).catch(console.error);
@@ -261,6 +263,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         if (rooms.length === 0) {
             setRoomMemberIdsByRoom({});
             setDmDisplayNameByRoom({});
+            setDmAvatarUrlByRoom({});
             setOnlineCountsByRoom({});
             return;
         }
@@ -275,6 +278,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                 const memberIdsByRoom: Record<string, string[]> = {};
                 const dmNames: Record<string, string> = {};
+                const dmAvatars: Record<string, string | null> = {};
 
                 for (let index = 0; index < rooms.length; index++) {
                     const room = rooms[index];
@@ -287,6 +291,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             const summary = await fetchUserSummary(otherMember.userId).catch((): UserSummary | null => null);
                             if (summary) {
                                 dmNames[room.id] = summary.fullName?.trim() || summary.username;
+                                dmAvatars[room.id] = summary.avatarUrl ?? null;
                             }
                         }
                     }
@@ -295,11 +300,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 if (!cancelled) {
                     setRoomMemberIdsByRoom(memberIdsByRoom);
                     setDmDisplayNameByRoom(dmNames);
+                    setDmAvatarUrlByRoom(dmAvatars);
                 }
             } catch {
                 if (!cancelled) {
                     setRoomMemberIdsByRoom({});
                     setDmDisplayNameByRoom({});
+                    setDmAvatarUrlByRoom({});
                 }
             }
         };
@@ -360,6 +367,36 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         if (!normalizedSearch) return true;
         const displayName = room.type === 'DM' ? getDirectMessageName(room) : room.name;
         return displayName.toLowerCase().includes(normalizedSearch);
+    };
+
+    const getRoomAvatarUrl = (room: Room): string | null => {
+        const rawAvatar = room.type === 'DM'
+            ? (dmAvatarUrlByRoom[room.id] ?? null)
+            : (room.avatarUrl ?? null);
+        const resolved = resolveMediaUrl(rawAvatar);
+        if (!resolved) return null;
+        return avatarLoadErrorByRoom[room.id] === resolved ? null : resolved;
+    };
+
+    const handleAvatarLoadError = (roomId: string, url: string) => {
+        setAvatarLoadErrorByRoom((prev) => (prev[roomId] === url ? prev : { ...prev, [roomId]: url }));
+    };
+
+    const renderRoomAvatar = (room: Room, fallbackName: string) => {
+        const avatarUrl = getRoomAvatarUrl(room);
+        return (
+            <div className="room-card__avatar">
+                {avatarUrl ? (
+                    <img
+                        src={avatarUrl}
+                        alt=""
+                        onError={() => handleAvatarLoadError(room.id, avatarUrl)}
+                    />
+                ) : (
+                    getInitials(fallbackName)
+                )}
+            </div>
+        );
     };
 
     const directMessages = rooms
@@ -676,7 +713,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 }
                             }}
                         >
-                            <div className="room-card__avatar">{getInitials(getDirectMessageName(room))}</div>
+                            {renderRoomAvatar(room, getDirectMessageName(room))}
                             <div className="room-card__content">
                             <div className="room-card__toprow">
                                 <span className="room-card__name">
@@ -756,7 +793,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             }
                         }}
                     >
-                        <div className="room-card__avatar">{getInitials(room.name)}</div>
+                        {renderRoomAvatar(room, room.name)}
                         <div className="room-card__content">
                             <div className="room-card__toprow">
                                 <span className="room-card__name">

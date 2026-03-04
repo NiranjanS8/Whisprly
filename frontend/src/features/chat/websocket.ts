@@ -178,6 +178,7 @@ class WebSocketService {
                     senderId: body.senderId,
                     senderUsername: body.senderUsername,
                     senderFullName: body.senderFullName ?? null,
+                    senderAvatarUrl: body.senderAvatarUrl ?? null,
                     createdAt: body.createdAt,
                     editedAt: body.editedAt ?? null,
                     deletedAt: body.deletedAt ?? null,

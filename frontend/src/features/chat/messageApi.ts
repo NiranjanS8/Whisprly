@@ -23,6 +23,7 @@ interface MessageDto {
     senderId: string;
     senderUsername: string;
     senderFullName?: string | null;
+    senderAvatarUrl?: string | null;
     createdAt: string;
     editedAt?: string | null;
     deletedAt?: string | null;
@@ -59,6 +60,7 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         senderId: m.senderId,
         senderUsername: m.senderUsername,
         senderFullName: m.senderFullName ?? null,
+        senderAvatarUrl: m.senderAvatarUrl ?? null,
         createdAt: m.createdAt,
         editedAt: m.editedAt ?? null,
         deletedAt: m.deletedAt ?? null,
