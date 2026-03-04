@@ -9,6 +9,7 @@
     position: relative;
     overflow: hidden;
     flex-shrink: 0;
+    transition: width 0.22s ease, border-color 0.22s ease;
 }
 
 .sidebar-search-wrap {

@@ -26,7 +26,7 @@ function ChatLayout() {
     const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
     const setUsername = useAuthStore((s) => s.setUsername);
     const clearAuth = useAuthStore((s) => s.clearAuth);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 769px)').matches);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
     const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +69,15 @@ function ChatLayout() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [headerMenuOpen]);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(min-width: 769px)');
+        const syncSidebarState = () => {
+            setSidebarOpen(mediaQuery.matches);
+        };
+        mediaQuery.addEventListener('change', syncSidebarState);
+        return () => mediaQuery.removeEventListener('change', syncSidebarState);
+    }, []);
 
     const handleMenuAction = (action: 'help' | 'settings' | 'profile' | 'logout') => {
         setHeaderMenuOpen(false);
@@ -137,7 +146,7 @@ function ChatLayout() {
                     </div>
                 </div>
             </header>
-            <div className="app-body">
+            <div className={`app-body ${sidebarOpen ? 'app-body--sidebar-open' : 'app-body--sidebar-closed'}`}>
                 <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="main-content">
                     <Outlet />

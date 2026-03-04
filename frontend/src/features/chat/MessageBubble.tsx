@@ -9,6 +9,7 @@ interface Props {
     showAvatar: boolean;
     showSender: boolean;
     groupPosition: 'single' | 'start' | 'middle' | 'end';
+    highlighted?: boolean;
     avatarUrl?: string | null;
     onEdit?: (message: ChatMessage) => void;
     onDelete?: (message: ChatMessage) => void;
@@ -101,6 +102,7 @@ const MessageBubble = React.memo(function MessageBubble({
     showAvatar,
     showSender,
     groupPosition,
+    highlighted = false,
     avatarUrl,
     onEdit,
     onDelete,
@@ -221,7 +223,7 @@ const MessageBubble = React.memo(function MessageBubble({
                 <div className="msg__body">
                     {!isOwn && showSender && <span className="msg__sender">{senderDisplayName}</span>}
                     <div
-                        className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''} ${isDeleted ? 'msg__bubble--deleted' : ''}`}
+                        className={`msg__bubble ${message.status === 'sending' ? 'msg__bubble--sending' : ''} ${message.status === 'failed' ? 'msg__bubble--failed' : ''} ${isDeleted ? 'msg__bubble--deleted' : ''} ${highlighted ? 'msg__bubble--highlighted' : ''}`}
                     >
                         {message.content && (
                             <p className={`msg__content ${isDeleted ? 'msg__content--deleted' : ''}`}>

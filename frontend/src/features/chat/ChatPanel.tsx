@@ -54,6 +54,7 @@ export default function ChatPanel() {
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [atBottom, setAtBottom] = useState(true);
 
@@ -72,6 +73,13 @@ export default function ChatPanel() {
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
     }, [activeRoomId, messagesByRoom]);
+
+    const pinnedMessage = useMemo(() => {
+        const pinned = messages
+            .filter((msg) => !!msg.pinnedAt && !msg.deletedAt)
+            .sort((a, b) => new Date(b.pinnedAt as string).getTime() - new Date(a.pinnedAt as string).getTime());
+        return pinned[0] ?? null;
+    }, [messages]);
 
     useEffect(() => {
         if (!activeRoomId) return;
@@ -144,7 +152,14 @@ export default function ChatPanel() {
     useEffect(() => {
         setHeaderMenuOpen(false);
         setEditingMessage(null);
+        setHighlightedMessageId(null);
     }, [activeRoomId]);
+
+    useEffect(() => {
+        if (!highlightedMessageId) return;
+        const timer = window.setTimeout(() => setHighlightedMessageId(null), 1400);
+        return () => window.clearTimeout(timer);
+    }, [highlightedMessageId]);
 
     const handleSend = (content: string) => {
         if (!activeRoomId || !userId || !username) return;
@@ -226,6 +241,31 @@ export default function ChatPanel() {
             .catch(console.error);
     };
 
+    const getPinnedPreview = (message: ChatMessage): string => {
+        const content = message.content?.trim();
+        if (content) {
+            return content.length > 88 ? `${content.slice(0, 88)}...` : content;
+        }
+
+        if (message.attachment?.fileName) {
+            return `Attachment: ${message.attachment.fileName}`;
+        }
+
+        return 'Pinned message';
+    };
+
+    const handleJumpToPinnedMessage = () => {
+        if (!pinnedMessage?.id) return;
+        const targetIndex = messages.findIndex((msg) => msg.id === pinnedMessage.id);
+        if (targetIndex < 0) return;
+        virtuosoRef.current?.scrollToIndex({
+            index: targetIndex,
+            align: 'center',
+            behavior: 'smooth',
+        });
+        setHighlightedMessageId(pinnedMessage.id);
+    };
+
     if (!activeRoomId || !activeRoom) {
         return (
             <div className="chat-panel chat-panel--empty">
@@ -298,6 +338,26 @@ export default function ChatPanel() {
                 </div>
             </header>
 
+            {pinnedMessage && (
+                <button
+                    type="button"
+                    className="chat-pinned-banner"
+                    onClick={handleJumpToPinnedMessage}
+                    aria-label="Jump to pinned message"
+                >
+                    <span className="chat-pinned-banner__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 3h8l-2 6v3l3 3v2H7v-2l3-3V9L8 3z" fill="currentColor" />
+                            <path d="M12 21v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                    </span>
+                    <span className="chat-pinned-banner__content">
+                        <span className="chat-pinned-banner__label">Pinned message</span>
+                        <span className="chat-pinned-banner__preview">{getPinnedPreview(pinnedMessage)}</span>
+                    </span>
+                </button>
+            )}
+
             <div className="chat-messages">
                 {loading ? (
                     <div className="chat-loading">
@@ -336,6 +396,7 @@ export default function ChatPanel() {
                                     showAvatar={showAvatar}
                                     showSender={showAvatar}
                                     groupPosition={groupPosition}
+                                    highlighted={msg.id === highlightedMessageId}
                                     avatarUrl={isDmRoom ? dmParticipant?.avatarUrl : undefined}
                                     onEdit={handleStartEdit}
                                     onDelete={handleDeleteMessage}
