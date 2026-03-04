@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRoomStore } from './roomStore';
-import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member } from './roomApi';
+import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member, pinRoom, unpinRoom } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
@@ -25,8 +25,10 @@ interface DmConversationMenuProps {
     room: Room;
     muted: boolean;
     blocked: boolean;
+    pinned: boolean;
     onViewProfile: (room: Room) => Promise<void>;
     onToggleMute: (roomId: string) => void;
+    onTogglePin: (roomId: string) => void;
     onClearChat: (roomId: string) => void;
     onToggleBlockUser: (room: Room) => Promise<void>;
 }
@@ -35,23 +37,29 @@ function DmConversationMenu({
     room,
     muted,
     blocked,
+    pinned,
     onViewProfile,
     onToggleMute,
+    onTogglePin,
     onClearChat,
     onToggleBlockUser,
 }: DmConversationMenuProps) {
     return (
-        <div className="room-menu">
-            <button type="button" onClick={() => onViewProfile(room)}>
+        <div className="room-menu" role="menu" aria-label="Direct message actions">
+            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.id)}>
+                {pinned ? 'Unpin Conversation' : 'Pin Conversation'}
+            </button>
+            <button type="button" className="room-menu__item" onClick={() => onViewProfile(room)}>
                 View Profile
             </button>
-            <button type="button" onClick={() => onToggleMute(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.id)}>
                 {muted ? 'Unmute Conversation' : 'Mute Conversation'}
             </button>
-            <button type="button" onClick={() => onClearChat(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onClearChat(room.id)}>
                 Clear Chat
             </button>
-            <button type="button" className="room-menu-danger" onClick={() => onToggleBlockUser(room)}>
+            <div className="room-menu__divider" aria-hidden="true" />
+            <button type="button" className="room-menu__item room-menu__item--danger" onClick={() => onToggleBlockUser(room)}>
                 {blocked ? 'Unblock User' : 'Block User'}
             </button>
         </div>
@@ -61,9 +69,11 @@ function DmConversationMenu({
 interface RoomConversationMenuProps {
     room: Room;
     muted: boolean;
+    pinned: boolean;
     onCopyRoomId: (roomId: string) => Promise<void>;
     onRoomInfo: (room: Room) => void;
     onToggleMute: (roomId: string) => void;
+    onTogglePin: (roomId: string) => void;
     onLeaveRoom: (roomId: string) => Promise<void>;
     onDeleteRoom: (room: Room) => Promise<void>;
 }
@@ -71,27 +81,33 @@ interface RoomConversationMenuProps {
 function RoomConversationMenu({
     room,
     muted,
+    pinned,
     onCopyRoomId,
     onRoomInfo,
     onToggleMute,
+    onTogglePin,
     onLeaveRoom,
     onDeleteRoom,
 }: RoomConversationMenuProps) {
     return (
-        <div className="room-menu">
-            <button type="button" onClick={() => onCopyRoomId(room.id)}>
+        <div className="room-menu" role="menu" aria-label="Room actions">
+            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.id)}>
+                {pinned ? 'Unpin Room' : 'Pin Room'}
+            </button>
+            <button type="button" className="room-menu__item" onClick={() => onCopyRoomId(room.id)}>
                 Copy Room ID
             </button>
-            <button type="button" onClick={() => onRoomInfo(room)}>
+            <button type="button" className="room-menu__item" onClick={() => onRoomInfo(room)}>
                 Room Settings
             </button>
-            <button type="button" onClick={() => onToggleMute(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.id)}>
                 {muted ? 'Unmute' : 'Mute'}
             </button>
-            <button type="button" onClick={() => onLeaveRoom(room.id)}>
+            <div className="room-menu__divider" aria-hidden="true" />
+            <button type="button" className="room-menu__item" onClick={() => onLeaveRoom(room.id)}>
                 Leave Room
             </button>
-            <button type="button" className="room-menu-danger" onClick={() => onDeleteRoom(room)}>
+            <button type="button" className="room-menu__item room-menu__item--danger" onClick={() => onDeleteRoom(room)}>
                 Delete
             </button>
         </div>
@@ -314,8 +330,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const normalizedSearch = search.trim().toLowerCase();
 
     const getRoomActivityAt = (room: Room): string => lastActivityByRoom[room.id] ?? room.createdAt;
-    const byRecentActivity = (a: Room, b: Room): number =>
-        new Date(getRoomActivityAt(b)).getTime() - new Date(getRoomActivityAt(a)).getTime();
+    const byPinnedActivity = (a: Room, b: Room): number => {
+        const aPinned = Boolean(a.pinnedAt);
+        const bPinned = Boolean(b.pinnedAt);
+        if (aPinned !== bPinned) return aPinned ? -1 : 1;
+        return new Date(getRoomActivityAt(b)).getTime() - new Date(getRoomActivityAt(a)).getTime();
+    };
 
     const getDirectMessageName = (room: Room): string => {
         const knownDisplayName = dmDisplayNameByRoom[room.id];
@@ -341,12 +361,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const directMessages = rooms
         .filter((room) => room.type === 'DM')
         .filter(matchesSearch)
-        .sort(byRecentActivity);
+        .sort(byPinnedActivity);
 
     const groupRooms = rooms
         .filter((room) => room.type !== 'DM')
         .filter(matchesSearch)
-        .sort(byRecentActivity);
+        .sort(byPinnedActivity);
 
     const isDmPeerOnline = (room: Room): boolean => {
         const onlineCount = onlineCountsByRoom[room.id] ?? 0;
@@ -482,6 +502,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         setRoomMenuOpenId(null);
     };
 
+    const handleTogglePin = async (roomId: string) => {
+        const target = rooms.find((room) => room.id === roomId);
+        if (!target) return;
+        try {
+            const updated = target.pinnedAt ? await unpinRoom(roomId) : await pinRoom(roomId);
+            setRooms(rooms.map((room) => (room.id === roomId ? updated : room)));
+            setCopiedText(updated.pinnedAt ? 'Room pinned' : 'Room unpinned');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to update pin';
+            setCopiedText(msg);
+        } finally {
+            setTimeout(() => setCopiedText(''), 1800);
+            setRoomMenuOpenId(null);
+        }
+    };
+
     const getDmParticipantSummary = async (room: Room): Promise<UserSummary | null> => {
         if (!userId) return null;
         const members = await fetchRoomMembers(room.id);
@@ -591,7 +627,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
         <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
             <div className="sidebar-search-wrap">
-                <div className="sidebar-section-title">Rooms</div>
+                <div className="sidebar-section-title">Search</div>
                 <div className="sidebar-search-field">
                     <span className="search-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -601,17 +637,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     </span>
                     <input
                         type="text"
-                        placeholder="Search by room name"
+                        placeholder="Search rooms and direct messages"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        aria-label="Search rooms"
+                        aria-label="Search rooms and direct messages"
                     />
                 </div>
             </div>
 
             <div className="sidebar-rooms" role="listbox" aria-label="Chat rooms">
                 <section className="chat-section" aria-label="Direct Messages">
-                    <div className="chat-section-title">Direct Messages</div>
+                    <div className="chat-section-title">
+                        <span>Direct Messages</span>
+                        <span className="chat-section-count">{directMessages.length}</span>
+                    </div>
                     {directMessages.map((room) => (
                         <div
                             key={room.id}
@@ -629,10 +668,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         >
                             <div className="room-card__avatar">{getInitials(getDirectMessageName(room))}</div>
                             <div className="room-card__content">
-                                <div className="room-card__toprow">
-                                    <span className="room-card__name">{getDirectMessageName(room)}</span>
-                                    <span className="room-card__time">{formatRoomTimestamp(getRoomActivityAt(room))}</span>
-                                </div>
+                            <div className="room-card__toprow">
+                                <span className="room-card__name">
+                                    {getDirectMessageName(room)}
+                                    {room.pinnedAt && (
+                                        <span className="room-card__pin" aria-label="Pinned">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M8 3h8l-2 6v3l3 3v2H7v-2l3-3V9L8 3z" fill="currentColor" />
+                                                <path d="M12 21v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="room-card__time">{formatRoomTimestamp(getRoomActivityAt(room))}</span>
+                            </div>
                                 <span className="room-card__meta">
                                     <span className={`room-card__online-dot ${isDmPeerOnline(room) ? 'room-card__online-dot--online' : 'room-card__online-dot--offline'}`} aria-hidden="true" />
                                     {isDmPeerOnline(room) ? 'Online' : 'Offline'}
@@ -656,8 +705,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         room={room}
                                         muted={Boolean(mutedRoomIds[room.id])}
                                         blocked={Boolean(blockedDmRoomIds[room.id])}
+                                        pinned={Boolean(room.pinnedAt)}
                                         onViewProfile={handleViewDmProfile}
                                         onToggleMute={handleToggleDmMute}
+                                        onTogglePin={handleTogglePin}
                                         onClearChat={handleClearDmChat}
                                         onToggleBlockUser={handleToggleBlockDmUser}
                                     />
@@ -671,7 +722,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </section>
 
                 <section className="chat-section" aria-label="Rooms">
-                    <div className="chat-section-title">Rooms</div>
+                    <div className="chat-section-title">
+                        <span>Rooms</span>
+                        <span className="chat-section-count">{groupRooms.length}</span>
+                    </div>
                     {groupRooms.map((room) => (
                     <div
                         key={room.id}
@@ -690,7 +744,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         <div className="room-card__avatar">{getInitials(room.name)}</div>
                         <div className="room-card__content">
                             <div className="room-card__toprow">
-                                <span className="room-card__name">{room.name}</span>
+                                <span className="room-card__name">
+                                    {room.name}
+                                    {room.pinnedAt && (
+                                        <span className="room-card__pin" aria-label="Pinned">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M8 3h8l-2 6v3l3 3v2H7v-2l3-3V9L8 3z" fill="currentColor" />
+                                                <path d="M12 21v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </span>
                                 <span className="room-card__time">{formatRoomTimestamp(getRoomActivityAt(room))}</span>
                             </div>
                             <span className="room-card__meta">
@@ -715,9 +779,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 <RoomConversationMenu
                                     room={room}
                                     muted={Boolean(mutedRoomIds[room.id])}
+                                    pinned={Boolean(room.pinnedAt)}
                                     onCopyRoomId={(roomId) => copyText(roomId, 'Room ID')}
                                     onRoomInfo={handleRoomInfo}
                                     onToggleMute={handleToggleMute}
+                                    onTogglePin={handleTogglePin}
                                     onLeaveRoom={handleLeaveRoom}
                                     onDeleteRoom={handleDeleteRoom}
                                 />
@@ -839,34 +905,39 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
             )}
 
-            <div className="sidebar-fab-wrap" onClick={(e) => e.stopPropagation()}>
-                {actionMenuOpen && (
-                    <div className="fab-menu">
-                        <button type="button" onClick={() => openComposer('create')}>New Room</button>
-                        <button type="button" onClick={() => openComposer('join')}>Join Room</button>
-                        <button type="button" onClick={() => openComposer('chat')}>New Chat</button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (userId) {
-                                    copyText(userId, 'User ID');
-                                }
-                                setActionMenuOpen(false);
-                            }}
-                            disabled={!userId}
-                        >
-                            Copy My User ID
-                        </button>
-                    </div>
-                )}
-                <button
-                    type="button"
-                    className="sidebar-fab"
-                    aria-label="Open quick actions"
-                    onClick={() => setActionMenuOpen((prev) => !prev)}
-                >
-                    +
-                </button>
+            <div className="sidebar-action-bar" onClick={(e) => e.stopPropagation()}>
+                <div className="sidebar-action-wrap">
+                    {actionMenuOpen && (
+                        <div className="room-menu sidebar-action-menu" role="menu" aria-label="Create or join actions">
+                            <button type="button" className="room-menu__item" onClick={() => openComposer('create')}>Create Room</button>
+                            <button type="button" className="room-menu__item" onClick={() => openComposer('join')}>Join Room</button>
+                            <button type="button" className="room-menu__item" onClick={() => openComposer('chat')}>New Chat</button>
+                            <div className="room-menu__divider" aria-hidden="true" />
+                            <button
+                                type="button"
+                                className="room-menu__item"
+                                onClick={() => {
+                                    if (userId) {
+                                        copyText(userId, 'User ID');
+                                    }
+                                    setActionMenuOpen(false);
+                                }}
+                                disabled={!userId}
+                            >
+                                Copy My User ID
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        className="sidebar-action-btn"
+                        aria-label="Create new room or chat"
+                        aria-expanded={actionMenuOpen}
+                        onClick={() => setActionMenuOpen((prev) => !prev)}
+                    >
+                        New Room
+                    </button>
+                </div>
             </div>
 
             {copiedText && <div className="floating-feedback">{copiedText}</div>}

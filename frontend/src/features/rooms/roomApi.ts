@@ -14,6 +14,7 @@ export interface Room {
     membersCanAddMembers?: boolean;
     maxMembers?: number | null;
     allowedMediaTypes?: string | null;
+    pinnedAt?: string | null;
 }
 
 export interface Member {
@@ -81,5 +82,15 @@ export async function updateRoomSettings(roomId: string, payload: RoomSettingsPa
 
 export async function transferRoomOwnership(roomId: string, newOwnerUserId: string): Promise<Room> {
     const res = await httpClient.post<Room>(`/rooms/${roomId}/transfer-ownership`, { newOwnerUserId });
+    return res.data;
+}
+
+export async function pinRoom(roomId: string): Promise<Room> {
+    const res = await httpClient.post<Room>(`/rooms/${roomId}/pin`);
+    return res.data;
+}
+
+export async function unpinRoom(roomId: string): Promise<Room> {
+    const res = await httpClient.delete<Room>(`/rooms/${roomId}/pin`);
     return res.data;
 }

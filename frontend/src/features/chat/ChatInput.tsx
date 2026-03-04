@@ -106,6 +106,8 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
         }
     };
 
+    const isTyping = value.trim().length > 0 && !disabled && !uploading;
+
     return (
         <div className="chat-input-container">
             {editMode && (
@@ -178,6 +180,16 @@ export default function ChatInput({ onSendText, onUploadAttachment, disabled, ed
                         </>
                     )}
                     {!uploading && uploadError && <span className="chat-upload-status__error">{uploadError}</span>}
+                </div>
+            )}
+            {isTyping && (
+                <div className="chat-typing-state" aria-live="polite">
+                    <span className="chat-typing-state__text">Typing</span>
+                    <span className="chat-typing-state__dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                    </span>
                 </div>
             )}
         </div>

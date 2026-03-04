@@ -181,7 +181,50 @@ public class MessageService {
         message.setAttachmentCategory(null);
         message.setAttachmentStorageKey(null);
         message.setAttachmentUrl(null);
+        message.setPinnedAt(null);
+        message.setPinnedBy(null);
 
+        message = messageRepository.save(message);
+        return toResponse(message);
+    }
+
+    @Transactional
+    public ChatMessageResponse pinMessage(UUID roomId, UUID messageId, UUID userId) {
+        if (!memberRepository.existsByRoomIdAndUserId(roomId, userId)) {
+            throw new AccessDeniedException("You are not a member of this room");
+        }
+
+        Message message = messageRepository.findByIdAndRoomIdWithSender(messageId, roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+
+        if (message.getDeletedAt() != null) {
+            throw new IllegalStateException("Deleted messages cannot be pinned");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        message.setPinnedAt(Instant.now());
+        message.setPinnedBy(user);
+        message = messageRepository.save(message);
+        return toResponse(message);
+    }
+
+    @Transactional
+    public ChatMessageResponse unpinMessage(UUID roomId, UUID messageId, UUID userId) {
+        if (!memberRepository.existsByRoomIdAndUserId(roomId, userId)) {
+            throw new AccessDeniedException("You are not a member of this room");
+        }
+
+        Message message = messageRepository.findByIdAndRoomIdWithSender(messageId, roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+
+        if (message.getPinnedAt() == null) {
+            return toResponse(message);
+        }
+
+        message.setPinnedAt(null);
+        message.setPinnedBy(null);
         message = messageRepository.save(message);
         return toResponse(message);
     }
@@ -259,6 +302,9 @@ public class MessageService {
                 .createdAt(message.getCreatedAt())
                 .editedAt(message.getEditedAt())
                 .deletedAt(message.getDeletedAt())
+                .pinnedAt(message.getPinnedAt())
+                .pinnedById(message.getPinnedBy() == null ? null : message.getPinnedBy().getId())
+                .pinnedByUsername(message.getPinnedBy() == null ? null : message.getPinnedBy().getUsername())
                 .build();
     }
 

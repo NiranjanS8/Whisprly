@@ -7,7 +7,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from './chatStore';
 import type { ChatMessage } from './chatStore';
 import { wsService } from './websocket';
-import { deleteMessage, editMessage, fetchMessages, uploadAttachmentMessage } from './messageApi';
+import { deleteMessage, editMessage, fetchMessages, uploadAttachmentMessage, pinMessage, unpinMessage } from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
 import { usePresenceStore } from '../presence/presenceStore';
@@ -216,6 +216,16 @@ export default function ChatPanel() {
             .catch(console.error);
     };
 
+    const handleTogglePinMessage = (message: ChatMessage) => {
+        if (!activeRoomId || !message.id) return;
+        const action = message.pinnedAt ? unpinMessage : pinMessage;
+        action(activeRoomId, message.id)
+            .then((updated) => {
+                useChatStore.getState().upsertMessage(activeRoomId, updated);
+            })
+            .catch(console.error);
+    };
+
     if (!activeRoomId || !activeRoom) {
         return (
             <div className="chat-panel chat-panel--empty">
@@ -234,7 +244,7 @@ export default function ChatPanel() {
     const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
     const headerStatusText = isDmRoom
         ? (dmOnline ? 'Online' : 'Offline')
-        : `${roomOnlineCount} online Â· ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
+        : `${roomOnlineCount} online · ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
 
     return (
         <div className="chat-panel">
@@ -311,6 +321,12 @@ export default function ChatPanel() {
                         atBottomStateChange={setAtBottom}
                         itemContent={(index, msg) => {
                             const prev = index > 0 ? messages[index - 1] : null;
+                            const next = index < messages.length - 1 ? messages[index + 1] : null;
+                            const sameAsPrev = !!prev && prev.senderId === msg.senderId;
+                            const sameAsNext = !!next && next.senderId === msg.senderId;
+                            const groupPosition = sameAsPrev
+                                ? (sameAsNext ? 'middle' : 'end')
+                                : (sameAsNext ? 'start' : 'single');
                             const showAvatar = !prev || prev.senderId !== msg.senderId;
                             return (
                                 <MessageBubble
@@ -319,9 +335,11 @@ export default function ChatPanel() {
                                     isOwn={msg.senderId === userId}
                                     showAvatar={showAvatar}
                                     showSender={showAvatar}
+                                    groupPosition={groupPosition}
                                     avatarUrl={isDmRoom ? dmParticipant?.avatarUrl : undefined}
                                     onEdit={handleStartEdit}
                                     onDelete={handleDeleteMessage}
+                                    onTogglePin={handleTogglePinMessage}
                                 />
                             );
                         }}

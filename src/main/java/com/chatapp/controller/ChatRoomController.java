@@ -118,4 +118,20 @@ public class ChatRoomController {
         ChatRoomResponse response = chatRoomService.getOrCreateDmRoom(currentUser.getId(), targetUserId);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{roomId}/pin")
+    public ResponseEntity<ChatRoomResponse> pinRoom(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.pinRoom(roomId, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{roomId}/pin")
+    public ResponseEntity<ChatRoomResponse> unpinRoom(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.unpinRoom(roomId, currentUser.getId());
+        return ResponseEntity.ok(response);
+    }
 }

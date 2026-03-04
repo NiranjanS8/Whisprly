@@ -8,9 +8,11 @@ interface Props {
     isOwn: boolean;
     showAvatar: boolean;
     showSender: boolean;
+    groupPosition: 'single' | 'start' | 'middle' | 'end';
     avatarUrl?: string | null;
     onEdit?: (message: ChatMessage) => void;
     onDelete?: (message: ChatMessage) => void;
+    onTogglePin?: (message: ChatMessage) => void;
 }
 
 const PREVIEW_CACHE_LIMIT = 120;
@@ -98,9 +100,11 @@ const MessageBubble = React.memo(function MessageBubble({
     isOwn,
     showAvatar,
     showSender,
+    groupPosition,
     avatarUrl,
     onEdit,
     onDelete,
+    onTogglePin,
 }: Props) {
     const senderDisplayName = message.senderFullName?.trim() || message.senderUsername;
     const resolvedAvatarUrl = resolveMediaUrl(avatarUrl ?? null);
@@ -115,6 +119,8 @@ const MessageBubble = React.memo(function MessageBubble({
     const isVisualPreview = isImage || isVideo;
     const isDeleted = !!message.deletedAt;
     const canEdit = isOwn && !!message.id && !isDeleted && message.status !== 'sending';
+    const canPin = !!message.id && !isDeleted && message.status !== 'sending';
+    const showActions = (canEdit || canPin) && !isDeleted;
 
     useEffect(() => {
         let active = true;
@@ -203,7 +209,9 @@ const MessageBubble = React.memo(function MessageBubble({
 
     return (
         <>
-            <div className={`msg ${isOwn ? 'msg--own' : 'msg--other'} ${showAvatar ? '' : 'msg--stacked'}`}>
+            <div
+                className={`msg ${isOwn ? 'msg--own' : 'msg--other'} ${showAvatar ? '' : 'msg--stacked'} msg--group-${groupPosition}`}
+            >
                 {!isOwn && showAvatar && (
                     <div className="msg__avatar" title={senderDisplayName}>
                         {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt={`${senderDisplayName} avatar`} /> : getInitials(senderDisplayName)}
@@ -263,12 +271,13 @@ const MessageBubble = React.memo(function MessageBubble({
                         )}
                         <span className="msg__time">
                             {formatTime(message.createdAt)}
+                            {message.pinnedAt && !isDeleted && <span className="msg__pinned">Pinned</span>}
                             {message.editedAt && !isDeleted && <span className="msg__edited">Edited</span>}
                             {isOwn && (
                                 <MessageStatusIndicator status={message.status} />
                             )}
                         </span>
-                        {canEdit && (
+                        {showActions && (
                             <div className="msg__actions">
                                 <button
                                     type="button"
@@ -284,12 +293,24 @@ const MessageBubble = React.memo(function MessageBubble({
                                 </button>
                                 {menuOpen && (
                                     <div className="msg__actions-menu">
+                                        {canPin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMenuOpen(false);
+                                                    onTogglePin?.(message);
+                                                }}
+                                            >
+                                                {message.pinnedAt ? 'Unpin' : 'Pin'}
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setMenuOpen(false);
                                                 onEdit?.(message);
                                             }}
+                                            disabled={!canEdit}
                                         >
                                             Edit
                                         </button>
@@ -300,6 +321,7 @@ const MessageBubble = React.memo(function MessageBubble({
                                                 setMenuOpen(false);
                                                 onDelete?.(message);
                                             }}
+                                            disabled={!canEdit}
                                         >
                                             Delete
                                         </button>

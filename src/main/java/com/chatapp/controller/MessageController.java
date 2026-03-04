@@ -89,6 +89,34 @@ public class MessageController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{roomId}/messages/{messageId}/pin")
+    public ResponseEntity<ChatMessageResponse> pinMessage(
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatMessageResponse response = messageService.pinMessage(
+                roomId,
+                messageId,
+                currentUser.getId()
+        );
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{roomId}/messages/{messageId}/pin")
+    public ResponseEntity<ChatMessageResponse> unpinMessage(
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId,
+            @AuthenticationPrincipal User currentUser) {
+        ChatMessageResponse response = messageService.unpinMessage(
+                roomId,
+                messageId,
+                currentUser.getId()
+        );
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{roomId}/messages/{messageId}/attachment")
     public ResponseEntity<Resource> downloadAttachment(
             @PathVariable UUID roomId,

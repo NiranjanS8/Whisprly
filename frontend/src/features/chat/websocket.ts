@@ -153,6 +153,9 @@ class WebSocketService {
                     createdAt: body.createdAt,
                     editedAt: body.editedAt ?? null,
                     deletedAt: body.deletedAt ?? null,
+                    pinnedAt: body.pinnedAt ?? null,
+                    pinnedById: body.pinnedById ?? null,
+                    pinnedByUsername: body.pinnedByUsername ?? null,
                     roomId: roomId,
                     status: 'sent',
                 };

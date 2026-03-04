@@ -26,6 +26,9 @@ interface MessageDto {
     createdAt: string;
     editedAt?: string | null;
     deletedAt?: string | null;
+    pinnedAt?: string | null;
+    pinnedById?: string | null;
+    pinnedByUsername?: string | null;
     idempotencyKey?: string;
     roomId: string;
 }
@@ -46,6 +49,9 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         createdAt: m.createdAt,
         editedAt: m.editedAt ?? null,
         deletedAt: m.deletedAt ?? null,
+        pinnedAt: m.pinnedAt ?? null,
+        pinnedById: m.pinnedById ?? null,
+        pinnedByUsername: m.pinnedByUsername ?? null,
         roomId: m.roomId || roomId,
         status: 'sent',
     };
@@ -91,5 +97,15 @@ export async function editMessage(roomId: string, messageId: string, content: st
 
 export async function deleteMessage(roomId: string, messageId: string): Promise<ChatMessage> {
     const res = await httpClient.delete<MessageDto>(`/rooms/${roomId}/messages/${messageId}`);
+    return toChatMessage(res.data, roomId);
+}
+
+export async function pinMessage(roomId: string, messageId: string): Promise<ChatMessage> {
+    const res = await httpClient.post<MessageDto>(`/rooms/${roomId}/messages/${messageId}/pin`);
+    return toChatMessage(res.data, roomId);
+}
+
+export async function unpinMessage(roomId: string, messageId: string): Promise<ChatMessage> {
+    const res = await httpClient.delete<MessageDto>(`/rooms/${roomId}/messages/${messageId}/pin`);
     return toChatMessage(res.data, roomId);
 }

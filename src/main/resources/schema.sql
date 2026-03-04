@@ -67,3 +67,12 @@ ALTER TABLE messages
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+ALTER TABLE chat_room_members
+    ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP;
+
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS pinned_by UUID;
