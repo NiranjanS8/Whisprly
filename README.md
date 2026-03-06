@@ -61,58 +61,7 @@ Example:
 
 # System Architecture
 
-'''
-Chat_App/
-├─ README.md
-├─ ARCHITECTURE.md
-├─ pom.xml
-├─ frontend/
-│  ├─ README.md
-│  ├─ package.json
-│  ├─ package-lock.json
-│  ├─ .env.example
-│  ├─ index.html
-│  ├─ vite.config.ts
-│  ├─ eslint.config.js
-│  ├─ tsconfig.json
-│  ├─ tsconfig.app.json
-│  ├─ tsconfig.node.json
-│  └─ src/
-│     ├─ main.tsx
-│     ├─ app/
-│     │  ├─ App.tsx
-│     │  └─ App.css
-│     ├─ styles/
-│     │  ├─ reset.css
-│     │  ├─ variables.css
-│     │  └─ animations.css
-│     ├─ shared/
-│     │  ├─ httpClient.ts
-│     │  └─ utils.ts
-│     └─ features/
-│        ├─ auth/ (LoginPage.tsx, RegisterPage.tsx, authApi.ts, authStore.ts, auth.css)
-│        ├─ chat/ (ChatPanel.tsx, ChatInput.tsx, MessageBubble.tsx, websocket.ts, messageApi.ts, chatStore.ts, chat.css)
-│        ├─ rooms/ (Sidebar.tsx, RoomSettingsPage.tsx, roomApi.ts, dmRequestApi.ts, roomStore.ts, sidebar.css, room-settings.css)
-│        ├─ profile/ (ProfilePage.tsx, profileApi.ts, profile.css)
-│        └─ presence/ (presenceStore.ts)
-└─ src/
-   └─ main/
-      ├─ java/com/chatapp/
-      │  ├─ ChatAppApplication.java
-      │  ├─ config/ (SecurityConfig.java, WebSocketConfig.java)
-      │  ├─ controller/ (AuthController.java, ChatController.java, ChatRoomController.java, DmRequestController.java, MessageController.java, PresenceController.java, UserController.java)
-      │  ├─ dto/ (...request/response DTOs)
-      │  ├─ exception/ (GlobalExceptionHandler.java, ResourceNotFoundException.java, DuplicateResourceException.java, UnauthorizedException.java)
-      │  ├─ model/ (User.java, ChatRoom.java, Message.java, DmRequest.java, ChatRoomMember.java, enums)
-      │  ├─ repository/ (UserRepository.java, ChatRoomRepository.java, MessageRepository.java, etc.)
-      │  ├─ security/ (JwtService.java, JwtAuthenticationFilter.java, interceptors)
-      │  ├─ service/ (AuthService.java, ChatRoomService.java, MessageService.java, PresenceService.java, etc.)
-      │  └─ storage/ (StorageService.java, FileSystemStorageService.java, validation/properties/exceptions)
-      └─ resources/
-         ├─ application.yml
-         └─ schema.sql
-
-'''
+![Architecture](App_Architecture.png)
 
 ------------------------------------------------------------------------
 
