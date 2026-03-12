@@ -120,7 +120,7 @@ public class MessageService {
                 .build();
 
         message = messageRepository.save(message);
-        message.setAttachmentUrl(buildAttachmentUrl(roomId, message.getId()));
+        message.setAttachmentUrl(buildAttachmentUrl(room.getSlug(), message.getId()));
         message = messageRepository.save(message);
 
         return toResponse(message);
@@ -331,8 +331,8 @@ public class MessageService {
         return room;
     }
 
-    private String buildAttachmentUrl(UUID roomId, UUID messageId) {
-        return "/rooms/" + roomId + "/messages/" + messageId + "/attachment";
+    private String buildAttachmentUrl(String roomSlug, UUID messageId) {
+        return "/rooms/" + roomSlug + "/messages/" + messageId + "/attachment";
     }
 
     private Instant resolveExpiration(ChatRoom room) {
@@ -358,7 +358,7 @@ public class MessageService {
                     .fileSizeBytes(message.getAttachmentSizeBytes())
                     .category(message.getAttachmentCategory() == null ? null : message.getAttachmentCategory().name())
                     .url(message.getAttachmentUrl() == null || message.getAttachmentUrl().isBlank()
-                            ? buildAttachmentUrl(message.getRoom().getId(), message.getId())
+                            ? buildAttachmentUrl(message.getRoom().getSlug(), message.getId())
                             : message.getAttachmentUrl())
                     .inlinePreviewable(inlinePreviewable)
                     .build();
@@ -368,6 +368,7 @@ public class MessageService {
                 .id(message.getId())
                 .idempotencyKey(message.getIdempotencyKey())
                 .roomId(message.getRoom().getId())
+                .roomSlug(message.getRoom().getSlug())
                 .senderId(message.getSender().getId())
                 .senderUsername(message.getSender().getUsername())
                 .senderFullName(message.getSender().getFullName())
@@ -412,6 +413,7 @@ public class MessageService {
         return MessageSearchResultResponse.builder()
                 .messageId(message.getId())
                 .roomId(message.getRoom().getId())
+                .roomSlug(message.getRoom().getSlug())
                 .roomName(message.getRoom().getName())
                 .roomType(message.getRoom().getType().name())
                 .senderId(message.getSender().getId())

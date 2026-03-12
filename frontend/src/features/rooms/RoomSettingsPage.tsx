@@ -43,7 +43,7 @@ function setMutedRoomMap(map: Record<string, boolean>) {
 
 export default function RoomSettingsPage() {
     const navigate = useNavigate();
-    const { roomId } = useParams();
+    const { roomSlug } = useParams();
     const userId = useAuthStore((s) => s.userId);
     const { rooms, setRooms, setActiveRoom } = useRoomStore();
 
@@ -79,15 +79,15 @@ export default function RoomSettingsPage() {
     );
 
     useEffect(() => {
-        if (!roomId) return;
+        if (!roomSlug) return;
         const muted = getMutedRoomMap();
-        setIsMuted(Boolean(muted[roomId]));
-    }, [roomId]);
+        setIsMuted(Boolean(muted[roomSlug]));
+    }, [roomSlug]);
 
     useEffect(() => {
-        if (!roomId) {
+        if (!roomSlug) {
             setLoading(false);
-            setError('Invalid room ID');
+            setError('Invalid room');
             return;
         }
 
@@ -96,8 +96,8 @@ export default function RoomSettingsPage() {
             setError('');
             try {
                 const [roomData, memberData] = await Promise.all([
-                    fetchRoomDetails(roomId),
-                    fetchRoomMembers(roomId),
+                    fetchRoomDetails(roomSlug),
+                    fetchRoomMembers(roomSlug),
                 ]);
                 setRoom(roomData);
                 setMembers(memberData);
@@ -115,7 +115,7 @@ export default function RoomSettingsPage() {
         };
 
         load();
-    }, [roomId]);
+    }, [roomSlug]);
 
     const syncRoomInStore = (updated: Room) => {
         setRooms(rooms.map((entry) => (entry.id === updated.id ? { ...entry, ...updated } : entry)));
@@ -123,13 +123,13 @@ export default function RoomSettingsPage() {
 
     const handleSaveSettings = async (e: FormEvent) => {
         e.preventDefault();
-        if (!roomId || !isOwner) return;
+        if (!roomSlug || !isOwner) return;
 
         setSaving(true);
         setError('');
         setSuccess('');
         try {
-            const updated = await updateRoomSettings(roomId, {
+            const updated = await updateRoomSettings(roomSlug, {
                 name: name.trim(),
                 avatarUrl: avatarUrl.trim(),
                 description: description.trim(),
@@ -166,11 +166,11 @@ export default function RoomSettingsPage() {
     };
 
     const handleAddMember = async () => {
-        if (!roomId || !previewUser || !isOwner) return;
+        if (!roomSlug || !previewUser || !isOwner) return;
         setAddingMember(true);
         setError('');
         try {
-            const created = await addMember(roomId, previewUser.id);
+            const created = await addMember(roomSlug, previewUser.id);
             setMembers((prev) => [...prev, created]);
             setPreviewUser(null);
             setCandidateUserId('');
@@ -183,13 +183,13 @@ export default function RoomSettingsPage() {
     };
 
     const handleRemoveMember = async (member: Member) => {
-        if (!roomId || !isOwner) return;
+        if (!roomSlug || !isOwner) return;
         const confirmed = window.confirm(`Remove ${toDisplayName(member.fullName, member.username)} from this room?`);
         if (!confirmed) return;
 
         setError('');
         try {
-            await removeMember(roomId, member.userId);
+            await removeMember(roomSlug, member.userId);
             setMembers((prev) => prev.filter((entry) => entry.userId !== member.userId));
             setSuccess('Member removed');
         } catch (err: any) {
@@ -198,22 +198,22 @@ export default function RoomSettingsPage() {
     };
 
     const handleMuteToggle = () => {
-        if (!roomId) return;
+        if (!roomSlug) return;
         const map = getMutedRoomMap();
         const nextValue = !isMuted;
-        map[roomId] = nextValue;
+        map[roomSlug] = nextValue;
         setMutedRoomMap(map);
         setIsMuted(nextValue);
     };
 
     const handleLeaveRoom = async () => {
-        if (!roomId || !userId) return;
+        if (!roomSlug || !userId) return;
         const confirmed = window.confirm('Leave this room?');
         if (!confirmed) return;
 
         try {
-            await removeMember(roomId, userId);
-            setRooms(rooms.filter((entry) => entry.id !== roomId));
+            await removeMember(roomSlug, userId);
+            setRooms(rooms.filter((entry) => entry.slug !== roomSlug));
             setActiveRoom(null);
             navigate('/chat');
         } catch (err: any) {
@@ -222,7 +222,7 @@ export default function RoomSettingsPage() {
     };
 
     const handleTransferOwnership = async () => {
-        if (!roomId || !selectedNewOwnerId || !isOwner) return;
+        if (!roomSlug || !selectedNewOwnerId || !isOwner) return;
         const target = members.find((member) => member.userId === selectedNewOwnerId);
         const confirmed = window.confirm(`Transfer ownership to ${toDisplayName(target?.fullName, target?.username) || 'selected member'}?`);
         if (!confirmed) return;
@@ -230,7 +230,7 @@ export default function RoomSettingsPage() {
         setTransferring(true);
         setError('');
         try {
-            const updated = await transferRoomOwnership(roomId, selectedNewOwnerId);
+            const updated = await transferRoomOwnership(roomSlug, selectedNewOwnerId);
             setRoom(updated);
             syncRoomInStore(updated);
             setSuccess('Ownership transferred');
@@ -242,13 +242,13 @@ export default function RoomSettingsPage() {
     };
 
     const handleDeleteRoom = async () => {
-        if (!roomId || !isOwner || !room) return;
+        if (!roomSlug || !isOwner || !room) return;
         const confirmText = window.prompt(`Type "${room.name}" to delete this room permanently.`);
         if (confirmText !== room.name) return;
 
         try {
-            await deleteRoom(roomId);
-            setRooms(rooms.filter((entry) => entry.id !== roomId));
+            await deleteRoom(roomSlug);
+            setRooms(rooms.filter((entry) => entry.slug !== roomSlug));
             setActiveRoom(null);
             navigate('/chat');
         } catch (err: any) {
@@ -307,6 +307,14 @@ export default function RoomSettingsPage() {
 
             <form className="room-settings__card" onSubmit={handleSaveSettings}>
                 <h3>Room Details</h3>
+                <label>
+                    Room slug
+                    <input value={room.slug} readOnly />
+                </label>
+                <label>
+                    Invite code
+                    <input value={room.inviteCode} readOnly />
+                </label>
                 <label>
                     Room name
                     <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />

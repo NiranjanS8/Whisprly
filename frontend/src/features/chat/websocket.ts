@@ -112,7 +112,7 @@ class WebSocketService {
         this.unreadQueueSub = this.client.subscribe('/user/queue/rooms/unread', (message: IMessage) => {
             try {
                 const body = JSON.parse(message.body);
-                const roomId = String(body.roomId ?? '');
+                const roomId = String(body.roomSlug ?? body.roomId ?? '');
                 const unreadCount = Number(body.unreadCount ?? 0);
                 if (!roomId) return;
                 useRoomStore.getState().setRoomUnreadCount(roomId, Number.isNaN(unreadCount) ? 0 : unreadCount);
@@ -165,9 +165,10 @@ class WebSocketService {
         if (!this.client?.active || !this.client.connected) return;
         if (this.subscriptions.has(roomId)) return;
 
-        const sub = this.client.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
+        const sub = this.client.subscribe(`/topic/room/${encodeURIComponent(roomId)}`, (message: IMessage) => {
             try {
                 const body = JSON.parse(message.body);
+                const resolvedRoomId = String(body.roomSlug ?? roomId);
                 const chatMsg: ChatMessage = {
                     id: body.id,
                     idempotencyKey: body.idempotencyKey ?? body.id,
@@ -186,35 +187,35 @@ class WebSocketService {
                     pinnedAt: body.pinnedAt ?? null,
                     pinnedById: body.pinnedById ?? null,
                     pinnedByUsername: body.pinnedByUsername ?? null,
-                    roomId: roomId,
+                    roomId: resolvedRoomId,
                     status: 'sent',
                 };
                 const store = useChatStore.getState();
-                const roomMessages = store.messagesByRoom[roomId] ?? [];
+                const roomMessages = store.messagesByRoom[resolvedRoomId] ?? [];
                 const existingById = chatMsg.id && roomMessages.find((m) => m.id === chatMsg.id);
 
                 if (existingById) {
-                    store.upsertMessage(roomId, chatMsg);
+                    store.upsertMessage(resolvedRoomId, chatMsg);
                     return;
                 }
 
-                useRoomStore.getState().touchRoomActivity(roomId, chatMsg.createdAt);
+                useRoomStore.getState().touchRoomActivity(resolvedRoomId, chatMsg.createdAt);
 
                 const isOwnOptimistic = roomMessages.some(
                     (m) => m.idempotencyKey === chatMsg.idempotencyKey && m.status === 'sending'
                 );
 
                 if (isOwnOptimistic) {
-                    store.confirmMessage(roomId, chatMsg.idempotencyKey, chatMsg);
+                    store.confirmMessage(resolvedRoomId, chatMsg.idempotencyKey, chatMsg);
                     window.setTimeout(() => {
-                        const current = useChatStore.getState().messagesByRoom[roomId] ?? [];
+                        const current = useChatStore.getState().messagesByRoom[resolvedRoomId] ?? [];
                         const target = current.find((m) => m.idempotencyKey === chatMsg.idempotencyKey);
                         if (target && target.status === 'sent') {
-                            useChatStore.getState().updateMessageStatus(roomId, chatMsg.idempotencyKey, 'read');
+                            useChatStore.getState().updateMessageStatus(resolvedRoomId, chatMsg.idempotencyKey, 'read');
                         }
                     }, 900);
                 } else {
-                    store.appendMessage(roomId, chatMsg);
+                    store.appendMessage(resolvedRoomId, chatMsg);
                 }
             } catch (e) {
                 console.error('Failed to parse message:', e);
@@ -228,14 +229,15 @@ class WebSocketService {
         if (!this.client?.active || !this.client.connected) return;
         if (this.typingSubscriptions.has(roomId)) return;
 
-        const sub = this.client.subscribe(`/topic/room/${roomId}/typing`, (message: IMessage) => {
+        const sub = this.client.subscribe(`/topic/room/${encodeURIComponent(roomId)}/typing`, (message: IMessage) => {
             try {
                 const body = JSON.parse(message.body);
                 const userId = String(body.userId ?? '');
                 const username = String(body.username ?? 'Someone');
                 const isTyping = Boolean(body.typing);
+                const resolvedRoomId = String(body.roomSlug ?? roomId);
                 if (!userId) return;
-                useChatStore.getState().setTypingState(roomId, userId, username, isTyping);
+                useChatStore.getState().setTypingState(resolvedRoomId, userId, username, isTyping);
             } catch (e) {
                 console.error('Failed to parse typing event:', e);
             }
@@ -271,7 +273,7 @@ class WebSocketService {
         if (!this.client?.active) return;
 
         this.client.publish({
-            destination: `/app/chat/${roomId}`,
+            destination: `/app/chat/${encodeURIComponent(roomId)}`,
             body: JSON.stringify({ content, idempotencyKey }),
         });
     }
@@ -289,13 +291,13 @@ class WebSocketService {
 
         // Primary path via app mapping (server validates membership and re-broadcasts).
         this.client.publish({
-            destination: `/app/typing/${roomId}`,
+            destination: `/app/typing/${encodeURIComponent(roomId)}`,
             body: payload,
         });
 
         // Fallback path: broker-level topic publish in case app mapping fails.
         this.client.publish({
-            destination: `/topic/room/${roomId}/typing`,
+            destination: `/topic/room/${encodeURIComponent(roomId)}/typing`,
             body: payload,
         });
     }

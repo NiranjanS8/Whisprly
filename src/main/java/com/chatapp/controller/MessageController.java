@@ -4,8 +4,10 @@ import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.MessageEditRequest;
 import com.chatapp.dto.MessageSearchResultResponse;
 import com.chatapp.model.AttachmentCategory;
+import com.chatapp.model.ChatRoom;
 import com.chatapp.model.User;
 import com.chatapp.service.MessageService;
+import com.chatapp.service.RoomPublicIdService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -28,24 +30,27 @@ import java.util.List;
 public class MessageController {
 
     private final MessageService messageService;
+    private final RoomPublicIdService roomPublicIdService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @GetMapping("/{roomId}/messages")
+    @GetMapping("/{roomKey}/messages")
     public ResponseEntity<Page<ChatMessageResponse>> getMessages(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @AuthenticationPrincipal User currentUser) {
-        Page<ChatMessageResponse> messages = messageService.getMessageHistory(roomId, currentUser.getId(), page, size);
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        Page<ChatMessageResponse> messages = messageService.getMessageHistory(room.getId(), currentUser.getId(), page, size);
         return ResponseEntity.ok(messages);
     }
 
-    @GetMapping("/{roomId}/messages/{messageId}")
+    @GetMapping("/{roomKey}/messages/{messageId}")
     public ResponseEntity<ChatMessageResponse> getMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @AuthenticationPrincipal User currentUser) {
-        ChatMessageResponse message = messageService.getMessage(roomId, messageId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatMessageResponse message = messageService.getMessage(room.getId(), messageId, currentUser.getId());
         return ResponseEntity.ok(message);
     }
 
@@ -58,101 +63,108 @@ public class MessageController {
         return ResponseEntity.ok(results);
     }
 
-    @GetMapping("/{roomId}/messages/search")
+    @GetMapping("/{roomKey}/messages/search")
     public ResponseEntity<List<MessageSearchResultResponse>> searchInRoom(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @RequestParam String query,
             @RequestParam(defaultValue = "20") int limit,
             @AuthenticationPrincipal User currentUser) {
-        List<MessageSearchResultResponse> results = messageService.searchMessagesInRoom(roomId, currentUser.getId(), query, limit);
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        List<MessageSearchResultResponse> results = messageService.searchMessagesInRoom(room.getId(), currentUser.getId(), query, limit);
         return ResponseEntity.ok(results);
     }
 
-    @PostMapping(path = "/{roomId}/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(path = "/{roomKey}/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ChatMessageResponse> uploadAttachmentMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "content", required = false) String content,
             @RequestParam(value = "idempotencyKey", required = false) UUID idempotencyKey,
             @AuthenticationPrincipal User currentUser) {
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         ChatMessageResponse response = messageService.sendAttachmentMessage(
-                roomId,
+                room.getId(),
                 currentUser.getId(),
                 content,
                 file,
                 idempotencyKey
         );
 
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PatchMapping("/{roomId}/messages/{messageId}")
+    @PatchMapping("/{roomKey}/messages/{messageId}")
     public ResponseEntity<ChatMessageResponse> editMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @RequestBody MessageEditRequest request,
             @AuthenticationPrincipal User currentUser) {
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         ChatMessageResponse response = messageService.editMessage(
-                roomId,
+                room.getId(),
                 messageId,
                 currentUser.getId(),
                 request.getContent()
         );
 
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{roomId}/messages/{messageId}")
+    @DeleteMapping("/{roomKey}/messages/{messageId}")
     public ResponseEntity<ChatMessageResponse> deleteMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @AuthenticationPrincipal User currentUser) {
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         ChatMessageResponse response = messageService.deleteMessage(
-                roomId,
+                room.getId(),
                 messageId,
                 currentUser.getId()
         );
 
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/{roomId}/messages/{messageId}/pin")
+    @PostMapping("/{roomKey}/messages/{messageId}/pin")
     public ResponseEntity<ChatMessageResponse> pinMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @AuthenticationPrincipal User currentUser) {
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         ChatMessageResponse response = messageService.pinMessage(
-                roomId,
+                room.getId(),
                 messageId,
                 currentUser.getId()
         );
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{roomId}/messages/{messageId}/pin")
+    @DeleteMapping("/{roomKey}/messages/{messageId}/pin")
     public ResponseEntity<ChatMessageResponse> unpinMessage(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @AuthenticationPrincipal User currentUser) {
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         ChatMessageResponse response = messageService.unpinMessage(
-                roomId,
+                room.getId(),
                 messageId,
                 currentUser.getId()
         );
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{roomId}/messages/{messageId}/attachment")
+    @GetMapping("/{roomKey}/messages/{messageId}/attachment")
     public ResponseEntity<Resource> downloadAttachment(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID messageId,
             @AuthenticationPrincipal User currentUser) {
-        MessageService.AttachmentDownload download = messageService.getAttachment(roomId, messageId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        MessageService.AttachmentDownload download = messageService.getAttachment(room.getId(), messageId, currentUser.getId());
 
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         if (download.contentType() != null && !download.contentType().isBlank()) {

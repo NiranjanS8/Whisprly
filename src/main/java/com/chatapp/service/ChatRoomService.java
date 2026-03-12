@@ -38,6 +38,7 @@ public class ChatRoomService {
     private final ChatRoomMemberRepository memberRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final RoomPublicIdService roomPublicIdService;
 
     @Transactional
     public ChatRoomResponse createRoom(String name, UUID creatorId, Integer maxMembers, String allowedMediaTypes) {
@@ -46,6 +47,8 @@ public class ChatRoomService {
 
         ChatRoom.ChatRoomBuilder builder = ChatRoom.builder()
                 .name(name)
+                .slug(roomPublicIdService.generateUniqueSlug(name))
+                .inviteCode(roomPublicIdService.generateUniqueInviteCode())
                 .type(RoomType.GROUP)
                 .createdBy(creator);
 
@@ -198,6 +201,12 @@ public class ChatRoomService {
     }
 
     @Transactional
+    public ChatRoomResponse joinRoomByInviteCode(String inviteCode, UUID userId) {
+        ChatRoom room = roomPublicIdService.resolveRoomByInviteCode(inviteCode);
+        return joinRoom(room.getId(), userId);
+    }
+
+    @Transactional
     public MemberResponse addMember(UUID roomId, UUID targetUserId, UUID requesterId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
@@ -306,6 +315,8 @@ public class ChatRoomService {
         String dmName = currentUser.getUsername() + " & " + targetUser.getUsername();
         ChatRoom room = ChatRoom.builder()
                 .name(dmName)
+                .slug(roomPublicIdService.generateUniqueSlug(dmName))
+                .inviteCode(roomPublicIdService.generateUniqueInviteCode())
                 .type(RoomType.DM)
                 .maxMembers(2)
                 .membersCanAddMembers(false)
@@ -337,6 +348,8 @@ public class ChatRoomService {
         return ChatRoomResponse.builder()
                 .id(room.getId())
                 .name(room.getName())
+                .slug(room.getSlug())
+                .inviteCode(room.getInviteCode())
                 .type(room.getType().name())
                 .createdById(room.getCreatedBy().getId())
                 .createdByUsername(room.getCreatedBy().getUsername())
@@ -430,6 +443,7 @@ public class ChatRoomService {
         return RoomUnreadUpdateResponse.builder()
                 .userId(userId)
                 .roomId(roomId)
+                .roomSlug(membership.getRoom().getSlug())
                 .unreadCount(0)
                 .lastReadAt(now)
                 .build();
@@ -443,6 +457,7 @@ public class ChatRoomService {
         return RoomUnreadUpdateResponse.builder()
                 .userId(userId)
                 .roomId(roomId)
+                .roomSlug(membership.getRoom().getSlug())
                 .unreadCount(unreadCount)
                 .lastReadAt(membership.getLastReadAt())
                 .build();
@@ -458,6 +473,7 @@ public class ChatRoomService {
                     return RoomUnreadUpdateResponse.builder()
                             .userId(memberUserId)
                             .roomId(roomId)
+                            .roomSlug(member.getRoom().getSlug())
                             .unreadCount(unreadCount)
                             .lastReadAt(member.getLastReadAt())
                             .build();

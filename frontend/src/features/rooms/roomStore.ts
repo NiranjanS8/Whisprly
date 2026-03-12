@@ -27,10 +27,10 @@ export const useRoomStore = create<RoomState>()(
             setRooms: (rooms) =>
                 set((state) => {
                     const activeStillExists = state.activeRoomId
-                        ? rooms.some((room) => room.id === state.activeRoomId)
+                        ? rooms.some((room) => room.slug === state.activeRoomId)
                         : false;
                     const nextActivity = { ...state.lastActivityByRoom };
-                    const nextRoomIds = new Set(rooms.map((room) => room.id));
+                    const nextRoomIds = new Set(rooms.map((room) => room.slug));
                     Object.keys(nextActivity).forEach((roomId) => {
                         if (!nextRoomIds.has(roomId)) {
                             delete nextActivity[roomId];
@@ -82,7 +82,7 @@ export const useRoomStore = create<RoomState>()(
             setRoomUnreadCount: (roomId, unreadCount) =>
                 set((state) => ({
                     rooms: state.rooms.map((room) =>
-                        room.id === roomId
+                        room.slug === roomId
                             ? { ...room, unreadCount }
                             : room
                     ),

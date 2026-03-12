@@ -22,6 +22,16 @@ ALTER TABLE chat_rooms
 ALTER TABLE chat_rooms
     ADD COLUMN IF NOT EXISTS self_destruct_seconds INTEGER;
 
+ALTER TABLE chat_rooms
+    ADD COLUMN IF NOT EXISTS slug VARCHAR(150);
+
+ALTER TABLE chat_rooms
+    ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_chat_rooms_slug ON chat_rooms (slug);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_chat_rooms_invite_code ON chat_rooms (invite_code);
+
 UPDATE chat_rooms
 SET max_members = 100
 WHERE max_members IS NULL;

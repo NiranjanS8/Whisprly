@@ -7,8 +7,10 @@ import com.chatapp.dto.MemberResponse;
 import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.RoomSettingsRequest;
 import com.chatapp.dto.TransferOwnershipRequest;
+import com.chatapp.model.ChatRoom;
 import com.chatapp.model.User;
 import com.chatapp.service.ChatRoomService;
+import com.chatapp.service.RoomPublicIdService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class ChatRoomController {
 
     private final ChatRoomService chatRoomService;
+    private final RoomPublicIdService roomPublicIdService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @PostMapping
@@ -46,80 +49,88 @@ public class ChatRoomController {
         return ResponseEntity.ok(rooms);
     }
 
-    @GetMapping("/{roomId}")
+    @GetMapping("/{roomKey}")
     public ResponseEntity<ChatRoomResponse> getRoomDetails(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.getRoomDetails(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatRoomResponse response = chatRoomService.getRoomDetails(room.getId(), currentUser.getId());
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{roomId}/members")
+    @GetMapping("/{roomKey}/members")
     public ResponseEntity<List<MemberResponse>> getRoomMembers(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        List<MemberResponse> members = chatRoomService.getRoomMembers(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        List<MemberResponse> members = chatRoomService.getRoomMembers(room.getId(), currentUser.getId());
         return ResponseEntity.ok(members);
     }
 
-    @PostMapping("/{roomId}/members")
+    @PostMapping("/{roomKey}/members")
     public ResponseEntity<MemberResponse> addMember(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @Valid @RequestBody AddMemberRequest request,
             @AuthenticationPrincipal User currentUser) {
-        MemberResponse response = chatRoomService.addMember(roomId, request.getUserId(), currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        MemberResponse response = chatRoomService.addMember(room.getId(), request.getUserId(), currentUser.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @DeleteMapping("/{roomId}/members/{userId}")
+    @DeleteMapping("/{roomKey}/members/{userId}")
     public ResponseEntity<Void> removeMember(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @PathVariable UUID userId,
             @AuthenticationPrincipal User currentUser) {
-        chatRoomService.removeMember(roomId, userId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        chatRoomService.removeMember(room.getId(), userId, currentUser.getId());
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/{roomId}")
+    @DeleteMapping("/{roomKey}")
     public ResponseEntity<Void> deleteRoom(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        chatRoomService.deleteRoom(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        chatRoomService.deleteRoom(room.getId(), currentUser.getId());
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{roomId}/join")
-    public ResponseEntity<ChatRoomResponse> joinRoom(
-            @PathVariable UUID roomId,
+    @PostMapping("/join/{inviteCode}")
+    public ResponseEntity<ChatRoomResponse> joinRoomByInviteCode(
+            @PathVariable String inviteCode,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.joinRoom(roomId, currentUser.getId());
+        ChatRoomResponse response = chatRoomService.joinRoomByInviteCode(inviteCode, currentUser.getId());
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{roomId}/settings")
+    @PutMapping("/{roomKey}/settings")
     public ResponseEntity<ChatRoomResponse> updateRoomSettings(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @Valid @RequestBody RoomSettingsRequest request,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.updateRoomSettings(roomId, request, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatRoomResponse response = chatRoomService.updateRoomSettings(room.getId(), request, currentUser.getId());
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/{roomId}/read")
+    @PostMapping("/{roomKey}/read")
     public ResponseEntity<RoomUnreadUpdateResponse> markRoomAsRead(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        RoomUnreadUpdateResponse response = chatRoomService.markRoomAsRead(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        RoomUnreadUpdateResponse response = chatRoomService.markRoomAsRead(room.getId(), currentUser.getId());
         messagingTemplate.convertAndSendToUser(currentUser.getId().toString(), "/queue/rooms/unread", response);
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/{roomId}/transfer-ownership")
+    @PostMapping("/{roomKey}/transfer-ownership")
     public ResponseEntity<ChatRoomResponse> transferOwnership(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @Valid @RequestBody TransferOwnershipRequest request,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.transferOwnership(roomId, request.getNewOwnerUserId(), currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatRoomResponse response = chatRoomService.transferOwnership(room.getId(), request.getNewOwnerUserId(), currentUser.getId());
         return ResponseEntity.ok(response);
     }
 
@@ -139,19 +150,21 @@ public class ChatRoomController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/{roomId}/pin")
+    @PostMapping("/{roomKey}/pin")
     public ResponseEntity<ChatRoomResponse> pinRoom(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.pinRoom(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatRoomResponse response = chatRoomService.pinRoom(room.getId(), currentUser.getId());
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{roomId}/pin")
+    @DeleteMapping("/{roomKey}/pin")
     public ResponseEntity<ChatRoomResponse> unpinRoom(
-            @PathVariable UUID roomId,
+            @PathVariable String roomKey,
             @AuthenticationPrincipal User currentUser) {
-        ChatRoomResponse response = chatRoomService.unpinRoom(roomId, currentUser.getId());
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        ChatRoomResponse response = chatRoomService.unpinRoom(room.getId(), currentUser.getId());
         return ResponseEntity.ok(response);
     }
 }

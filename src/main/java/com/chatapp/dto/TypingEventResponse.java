@@ -13,6 +13,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TypingEventResponse {
     private UUID roomId;
+    private String roomSlug;
     private UUID userId;
     private String username;
     private boolean typing;

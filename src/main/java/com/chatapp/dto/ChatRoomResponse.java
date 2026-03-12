@@ -16,6 +16,8 @@ public class ChatRoomResponse {
 
     private UUID id;
     private String name;
+    private String slug;
+    private String inviteCode;
     private String type;
     private UUID createdById;
     private String createdByUsername;

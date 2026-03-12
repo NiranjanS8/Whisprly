@@ -5,9 +5,11 @@ import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.TypingEventRequest;
 import com.chatapp.dto.TypingEventResponse;
+import com.chatapp.model.ChatRoom;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.service.ChatRoomService;
 import com.chatapp.service.MessageService;
+import com.chatapp.service.RoomPublicIdService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -30,10 +32,11 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatRoomMemberRepository memberRepository;
     private final ChatRoomService chatRoomService;
+    private final RoomPublicIdService roomPublicIdService;
 
-    @MessageMapping("/chat/{roomId}")
+    @MessageMapping("/chat/{roomKey}")
     public void handleMessage(
-            @DestinationVariable UUID roomId,
+            @DestinationVariable String roomKey,
             ChatMessageRequest request,
             SimpMessageHeaderAccessor headerAccessor) {
 
@@ -44,16 +47,17 @@ public class ChatController {
             return;
         }
 
-        // Service method is @Transactional — commits on return.
-        // Broadcast happens AFTER commit to prevent ghost messages.
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+
         ChatMessageResponse response = messageService.sendMessage(
-                roomId, senderId, request.getContent(), request.getIdempotencyKey());
+                room.getId(), senderId, request.getContent(), request.getIdempotencyKey());
 
-        // Transaction committed — safe to broadcast
-        messagingTemplate.convertAndSend("/topic/room/" + roomId, response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
 
-        for (RoomUnreadUpdateResponse unreadUpdate : chatRoomService.getUnreadUpdatesForRoom(roomId)) {
-            if (unreadUpdate.getUserId() == null) continue;
+        for (RoomUnreadUpdateResponse unreadUpdate : chatRoomService.getUnreadUpdatesForRoom(room.getId())) {
+            if (unreadUpdate.getUserId() == null) {
+                continue;
+            }
             messagingTemplate.convertAndSendToUser(
                     unreadUpdate.getUserId().toString(),
                     "/queue/rooms/unread",
@@ -61,9 +65,9 @@ public class ChatController {
         }
     }
 
-    @MessageMapping("/typing/{roomId}")
+    @MessageMapping("/typing/{roomKey}")
     public void handleTyping(
-            @DestinationVariable UUID roomId,
+            @DestinationVariable String roomKey,
             TypingEventRequest request,
             SimpMessageHeaderAccessor headerAccessor) {
         UUID senderId = (UUID) headerAccessor.getSessionAttributes().get("userId");
@@ -74,19 +78,21 @@ public class ChatController {
             return;
         }
 
-        if (!memberRepository.existsByRoomIdAndUserId(roomId, senderId)) {
-            log.warn("Typing event denied: user {} is not a member of room {}", senderId, roomId);
+        ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
+        if (!memberRepository.existsByRoomIdAndUserId(room.getId(), senderId)) {
+            log.warn("Typing event denied: user {} is not a member of room {}", senderId, room.getId());
             return;
         }
 
         TypingEventResponse response = TypingEventResponse.builder()
-                .roomId(roomId)
+                .roomId(room.getId())
+                .roomSlug(room.getSlug())
                 .userId(senderId)
                 .username(username)
                 .typing(request != null && request.isTyping())
                 .build();
 
-        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/typing", response);
+        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug() + "/typing", response);
     }
 
     @MessageExceptionHandler

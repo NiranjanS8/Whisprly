@@ -15,6 +15,7 @@ import java.util.UUID;
 public class RoomUnreadUpdateResponse {
     private UUID userId;
     private UUID roomId;
+    private String roomSlug;
     private Integer unreadCount;
     private Instant lastReadAt;
 }

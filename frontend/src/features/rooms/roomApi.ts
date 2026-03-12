@@ -3,6 +3,8 @@ import httpClient from '../../shared/httpClient';
 export interface Room {
     id: string;
     name: string;
+    slug: string;
+    inviteCode: string;
     type?: string;
     createdAt: string;
     createdById: string;
@@ -43,6 +45,7 @@ export interface RoomSettingsPayload {
 export interface RoomUnreadUpdate {
     userId: string;
     roomId: string;
+    roomSlug: string;
     unreadCount: number;
     lastReadAt: string | null;
 }
@@ -52,8 +55,8 @@ export async function fetchRooms(): Promise<Room[]> {
     return res.data;
 }
 
-export async function fetchRoomDetails(roomId: string): Promise<Room> {
-    const res = await httpClient.get<Room>(`/rooms/${roomId}`);
+export async function fetchRoomDetails(roomSlug: string): Promise<Room> {
+    const res = await httpClient.get<Room>(`/rooms/${encodeURIComponent(roomSlug)}`);
     return res.data;
 }
 
@@ -62,50 +65,50 @@ export async function createRoom(name: string): Promise<Room> {
     return res.data;
 }
 
-export async function fetchRoomMembers(roomId: string): Promise<Member[]> {
-    const res = await httpClient.get<Member[]>(`/rooms/${roomId}/members`);
+export async function fetchRoomMembers(roomSlug: string): Promise<Member[]> {
+    const res = await httpClient.get<Member[]>(`/rooms/${encodeURIComponent(roomSlug)}/members`);
     return res.data;
 }
 
-export async function addMember(roomId: string, userId: string): Promise<Member> {
-    const res = await httpClient.post<Member>(`/rooms/${roomId}/members`, { userId });
+export async function addMember(roomSlug: string, userId: string): Promise<Member> {
+    const res = await httpClient.post<Member>(`/rooms/${encodeURIComponent(roomSlug)}/members`, { userId });
     return res.data;
 }
 
-export async function joinRoom(roomId: string): Promise<Room> {
-    const res = await httpClient.post<Room>(`/rooms/${roomId}/join`);
+export async function joinRoom(inviteCode: string): Promise<Room> {
+    const res = await httpClient.post<Room>(`/rooms/join/${encodeURIComponent(inviteCode)}`);
     return res.data;
 }
 
-export async function removeMember(roomId: string, userId: string): Promise<void> {
-    await httpClient.delete(`/rooms/${roomId}/members/${userId}`);
+export async function removeMember(roomSlug: string, userId: string): Promise<void> {
+    await httpClient.delete(`/rooms/${encodeURIComponent(roomSlug)}/members/${userId}`);
 }
 
-export async function deleteRoom(roomId: string): Promise<void> {
-    await httpClient.delete(`/rooms/${roomId}`);
+export async function deleteRoom(roomSlug: string): Promise<void> {
+    await httpClient.delete(`/rooms/${encodeURIComponent(roomSlug)}`);
 }
 
-export async function updateRoomSettings(roomId: string, payload: RoomSettingsPayload): Promise<Room> {
-    const res = await httpClient.put<Room>(`/rooms/${roomId}/settings`, payload);
+export async function updateRoomSettings(roomSlug: string, payload: RoomSettingsPayload): Promise<Room> {
+    const res = await httpClient.put<Room>(`/rooms/${encodeURIComponent(roomSlug)}/settings`, payload);
     return res.data;
 }
 
-export async function transferRoomOwnership(roomId: string, newOwnerUserId: string): Promise<Room> {
-    const res = await httpClient.post<Room>(`/rooms/${roomId}/transfer-ownership`, { newOwnerUserId });
+export async function transferRoomOwnership(roomSlug: string, newOwnerUserId: string): Promise<Room> {
+    const res = await httpClient.post<Room>(`/rooms/${encodeURIComponent(roomSlug)}/transfer-ownership`, { newOwnerUserId });
     return res.data;
 }
 
-export async function pinRoom(roomId: string): Promise<Room> {
-    const res = await httpClient.post<Room>(`/rooms/${roomId}/pin`);
+export async function pinRoom(roomSlug: string): Promise<Room> {
+    const res = await httpClient.post<Room>(`/rooms/${encodeURIComponent(roomSlug)}/pin`);
     return res.data;
 }
 
-export async function unpinRoom(roomId: string): Promise<Room> {
-    const res = await httpClient.delete<Room>(`/rooms/${roomId}/pin`);
+export async function unpinRoom(roomSlug: string): Promise<Room> {
+    const res = await httpClient.delete<Room>(`/rooms/${encodeURIComponent(roomSlug)}/pin`);
     return res.data;
 }
 
-export async function markRoomRead(roomId: string): Promise<RoomUnreadUpdate> {
-    const res = await httpClient.post<RoomUnreadUpdate>(`/rooms/${roomId}/read`);
+export async function markRoomRead(roomSlug: string): Promise<RoomUnreadUpdate> {
+    const res = await httpClient.post<RoomUnreadUpdate>(`/rooms/${encodeURIComponent(roomSlug)}/read`);
     return res.data;
 }

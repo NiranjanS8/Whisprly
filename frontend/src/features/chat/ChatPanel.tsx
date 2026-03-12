@@ -60,7 +60,7 @@ function formatSearchResultTime(dateString: string): string {
 export default function ChatPanel() {
     const navigate = useNavigate();
     const activeRoomId = useRoomStore((s) => s.activeRoomId);
-    const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.id === s.activeRoomId));
+    const activeRoom = useRoomStore((s) => s.rooms.find((r) => r.slug === s.activeRoomId));
     const onlineCountsByRoom = useRoomStore((s) => s.onlineCountsByRoom);
     const touchRoomActivity = useRoomStore((s) => s.touchRoomActivity);
     const setRoomUnreadCount = useRoomStore((s) => s.setRoomUnreadCount);
@@ -163,7 +163,7 @@ export default function ChatPanel() {
         if (!activeRoomId || connectionStatus !== 'connected') return;
         markRoomRead(activeRoomId)
             .then((update) => {
-                setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+                setRoomUnreadCount(update.roomSlug || activeRoomId, update.unreadCount ?? 0);
             })
             .catch(console.error);
     }, [activeRoomId, connectionStatus, setRoomUnreadCount]);
@@ -173,7 +173,7 @@ export default function ChatPanel() {
         const timer = window.setTimeout(() => {
             markRoomRead(activeRoomId)
                 .then((update) => {
-                    setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+                    setRoomUnreadCount(update.roomSlug || activeRoomId, update.unreadCount ?? 0);
                 })
                 .catch(console.error);
         }, 250);
@@ -459,7 +459,7 @@ export default function ChatPanel() {
         ? resolveMediaUrl(dmParticipant?.avatarUrl ?? null)
         : resolveMediaUrl(activeRoom.avatarUrl ?? null);
     const dmOnline = isUserOnline(dmParticipant?.id);
-    const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.id] ?? 0) : 0;
+    const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.slug] ?? 0) : 0;
     const selfDestructSeconds = activeRoom?.selfDestructSeconds ?? null;
     const headerStatusText = isDmRoom
         ? (dmOnline ? 'Online' : 'Offline')
@@ -589,7 +589,7 @@ export default function ChatPanel() {
                                         type="button"
                                         onClick={() => {
                                             setHeaderMenuOpen(false);
-                                            navigate(`/chat/rooms/${activeRoomId}/settings`);
+                                            navigate(`/chat/rooms/${encodeURIComponent(activeRoomId)}/settings`);
                                         }}
                                     >
                                         Room Settings

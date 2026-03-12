@@ -139,8 +139,8 @@ function ChatLayout() {
     };
 
     const jumpToSearchResult = (result: MessageSearchResult) => {
-        setActiveRoom(result.roomId);
-        useChatStore.getState().setJumpTarget(result.roomId, result.messageId);
+        setActiveRoom(result.roomSlug);
+        useChatStore.getState().setJumpTarget(result.roomSlug, result.messageId);
         setSearchOpen(false);
         setSearchQuery('');
         setSearchResults([]);
@@ -278,7 +278,7 @@ export default function App() {
                     }
                 >
                     <Route index element={<ChatPanel />} />
-                    <Route path="rooms/:roomId/settings" element={<RoomSettingsPage />} />
+                    <Route path="rooms/:roomSlug/settings" element={<RoomSettingsPage />} />
                 </Route>
                 <Route
                     path="/profile"

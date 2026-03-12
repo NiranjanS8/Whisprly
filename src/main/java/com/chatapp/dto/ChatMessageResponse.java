@@ -17,6 +17,7 @@ public class ChatMessageResponse {
     private UUID id;
     private UUID idempotencyKey;
     private UUID roomId;
+    private String roomSlug;
     private UUID senderId;
     private String senderUsername;
     private String senderFullName;

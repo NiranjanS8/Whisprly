@@ -33,11 +33,13 @@ interface MessageDto {
     pinnedByUsername?: string | null;
     idempotencyKey?: string;
     roomId: string;
+    roomSlug?: string;
 }
 
 export interface MessageSearchResult {
     messageId: string;
     roomId: string;
+    roomSlug: string;
     roomName: string;
     roomType: string;
     senderId: string;
@@ -68,20 +70,20 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
         pinnedAt: m.pinnedAt ?? null,
         pinnedById: m.pinnedById ?? null,
         pinnedByUsername: m.pinnedByUsername ?? null,
-        roomId: m.roomId || roomId,
+        roomId: m.roomSlug || roomId,
         status: 'sent',
     };
 }
 
 export async function fetchMessages(roomId: string, page = 0, size = 50): Promise<ChatMessage[]> {
-    const res = await httpClient.get<PagedResponse<MessageDto>>(`/rooms/${roomId}/messages`, {
+    const res = await httpClient.get<PagedResponse<MessageDto>>(`/rooms/${encodeURIComponent(roomId)}/messages`, {
         params: { page, size },
     });
     return res.data.content.map((m) => toChatMessage(m, roomId));
 }
 
 export async function fetchMessageById(roomId: string, messageId: string): Promise<ChatMessage> {
-    const res = await httpClient.get<MessageDto>(`/rooms/${roomId}/messages/${messageId}`);
+    const res = await httpClient.get<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/${messageId}`);
     return toChatMessage(res.data, roomId);
 }
 
@@ -93,7 +95,7 @@ export async function searchMessagesGlobal(query: string, limit = 20): Promise<M
 }
 
 export async function searchMessagesInRoom(roomId: string, query: string, limit = 20): Promise<MessageSearchResult[]> {
-    const res = await httpClient.get<MessageSearchResult[]>(`/rooms/${roomId}/messages/search`, {
+    const res = await httpClient.get<MessageSearchResult[]>(`/rooms/${encodeURIComponent(roomId)}/messages/search`, {
         params: { query, limit },
     });
     return res.data;
@@ -112,7 +114,7 @@ export async function uploadAttachmentMessage(
     }
     formData.append('idempotencyKey', generateIdempotencyKey());
 
-    const res = await httpClient.post<MessageDto>(`/rooms/${roomId}/messages/attachments`, formData, {
+    const res = await httpClient.post<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/attachments`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
@@ -126,21 +128,21 @@ export async function uploadAttachmentMessage(
 }
 
 export async function editMessage(roomId: string, messageId: string, content: string): Promise<ChatMessage> {
-    const res = await httpClient.patch<MessageDto>(`/rooms/${roomId}/messages/${messageId}`, { content });
+    const res = await httpClient.patch<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/${messageId}`, { content });
     return toChatMessage(res.data, roomId);
 }
 
 export async function deleteMessage(roomId: string, messageId: string): Promise<ChatMessage> {
-    const res = await httpClient.delete<MessageDto>(`/rooms/${roomId}/messages/${messageId}`);
+    const res = await httpClient.delete<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/${messageId}`);
     return toChatMessage(res.data, roomId);
 }
 
 export async function pinMessage(roomId: string, messageId: string): Promise<ChatMessage> {
-    const res = await httpClient.post<MessageDto>(`/rooms/${roomId}/messages/${messageId}/pin`);
+    const res = await httpClient.post<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/${messageId}/pin`);
     return toChatMessage(res.data, roomId);
 }
 
 export async function unpinMessage(roomId: string, messageId: string): Promise<ChatMessage> {
-    const res = await httpClient.delete<MessageDto>(`/rooms/${roomId}/messages/${messageId}/pin`);
+    const res = await httpClient.delete<MessageDto>(`/rooms/${encodeURIComponent(roomId)}/messages/${messageId}/pin`);
     return toChatMessage(res.data, roomId);
 }

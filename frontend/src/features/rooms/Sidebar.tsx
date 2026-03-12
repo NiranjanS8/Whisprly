@@ -46,16 +46,16 @@ function DmConversationMenu({
 }: DmConversationMenuProps) {
     return (
         <div className="room-menu" role="menu" aria-label="Direct message actions">
-            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.slug)}>
                 {pinned ? 'Unpin Conversation' : 'Pin Conversation'}
             </button>
             <button type="button" className="room-menu__item" onClick={() => onViewProfile(room)}>
                 View Profile
             </button>
-            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.slug)}>
                 {muted ? 'Unmute Conversation' : 'Mute Conversation'}
             </button>
-            <button type="button" className="room-menu__item" onClick={() => onClearChat(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onClearChat(room.slug)}>
                 Clear Chat
             </button>
             <div className="room-menu__divider" aria-hidden="true" />
@@ -70,7 +70,7 @@ interface RoomConversationMenuProps {
     room: Room;
     muted: boolean;
     pinned: boolean;
-    onCopyRoomId: (roomId: string) => Promise<void>;
+    onCopyInviteCode: (inviteCode: string) => Promise<void>;
     onRoomInfo: (room: Room) => void;
     onToggleMute: (roomId: string) => void;
     onTogglePin: (roomId: string) => void;
@@ -82,7 +82,7 @@ function RoomConversationMenu({
     room,
     muted,
     pinned,
-    onCopyRoomId,
+    onCopyInviteCode,
     onRoomInfo,
     onToggleMute,
     onTogglePin,
@@ -91,20 +91,20 @@ function RoomConversationMenu({
 }: RoomConversationMenuProps) {
     return (
         <div className="room-menu" role="menu" aria-label="Room actions">
-            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onTogglePin(room.slug)}>
                 {pinned ? 'Unpin Room' : 'Pin Room'}
             </button>
-            <button type="button" className="room-menu__item" onClick={() => onCopyRoomId(room.id)}>
-                Copy Room ID
+            <button type="button" className="room-menu__item" onClick={() => onCopyInviteCode(room.inviteCode)}>
+                Copy Invite Code
             </button>
             <button type="button" className="room-menu__item" onClick={() => onRoomInfo(room)}>
                 Room Settings
             </button>
-            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onToggleMute(room.slug)}>
                 {muted ? 'Unmute' : 'Mute'}
             </button>
             <div className="room-menu__divider" aria-hidden="true" />
-            <button type="button" className="room-menu__item" onClick={() => onLeaveRoom(room.id)}>
+            <button type="button" className="room-menu__item" onClick={() => onLeaveRoom(room.slug)}>
                 Leave Room
             </button>
             <button type="button" className="room-menu__item room-menu__item--danger" onClick={() => onDeleteRoom(room)}>
@@ -203,11 +203,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         const loadLastActivity = async () => {
             const nextActivity: Record<string, string> = {};
             rooms.forEach((room) => {
-                nextActivity[room.id] = room.createdAt;
+                nextActivity[room.slug] = room.createdAt;
             });
 
             const latestMessages = await Promise.all(
-                rooms.map((room) => fetchMessages(room.id, 0, 20).catch(() => []))
+                rooms.map((room) => fetchMessages(room.slug, 0, 20).catch(() => []))
             );
 
             for (let index = 0; index < rooms.length; index++) {
@@ -219,7 +219,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         : latestAt;
                 }, null);
                 if (latestForRoom) {
-                    nextActivity[room.id] = latestForRoom;
+                    nextActivity[room.slug] = latestForRoom;
                 }
             }
 
@@ -245,9 +245,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     useEffect(() => {
         if (rooms.length === 0) return;
-        rooms.forEach((room) => wsService.subscribeToRoom(room.id));
+        rooms.forEach((room) => wsService.subscribeToRoom(room.slug));
         return () => {
-            rooms.forEach((room) => wsService.unsubscribeFromRoom(room.id));
+            rooms.forEach((room) => wsService.unsubscribeFromRoom(room.slug));
         };
     }, [rooms]);
 
@@ -273,7 +273,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         const loadRoomMembers = async () => {
             try {
                 const memberLists = await Promise.all(
-                    rooms.map((room) => fetchRoomMembers(room.id).catch((): Member[] => []))
+                    rooms.map((room) => fetchRoomMembers(room.slug).catch((): Member[] => []))
                 );
 
                 const memberIdsByRoom: Record<string, string[]> = {};
@@ -283,15 +283,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 for (let index = 0; index < rooms.length; index++) {
                     const room = rooms[index];
                     const members = memberLists[index] || [];
-                    memberIdsByRoom[room.id] = members.map((member) => member.userId);
+                    memberIdsByRoom[room.slug] = members.map((member) => member.userId);
 
                     if (room.type === 'DM' && userId) {
                         const otherMember = members.find((member) => member.userId !== userId);
                         if (otherMember) {
                             const summary = await fetchUserSummary(otherMember.userId).catch((): UserSummary | null => null);
                             if (summary) {
-                                dmNames[room.id] = summary.fullName?.trim() || summary.username;
-                                dmAvatars[room.id] = summary.avatarUrl ?? null;
+                                dmNames[room.slug] = summary.fullName?.trim() || summary.username;
+                                dmAvatars[room.slug] = summary.avatarUrl ?? null;
                             }
                         }
                     }
@@ -337,7 +337,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const normalizedSearch = search.trim().toLowerCase();
 
-    const getRoomActivityAt = (room: Room): string => lastActivityByRoom[room.id] ?? room.createdAt;
+    const getRoomActivityAt = (room: Room): string => lastActivityByRoom[room.slug] ?? room.createdAt;
     const byPinnedActivity = (a: Room, b: Room): number => {
         const aPinned = Boolean(a.pinnedAt);
         const bPinned = Boolean(b.pinnedAt);
@@ -349,7 +349,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const getDirectMessageName = (room: Room): string => {
-        const knownDisplayName = dmDisplayNameByRoom[room.id];
+        const knownDisplayName = dmDisplayNameByRoom[room.slug];
         if (knownDisplayName && knownDisplayName.trim()) return knownDisplayName;
 
         const roomName = room.name?.trim() || 'Direct Message';
@@ -371,11 +371,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const getRoomAvatarUrl = (room: Room): string | null => {
         const rawAvatar = room.type === 'DM'
-            ? (dmAvatarUrlByRoom[room.id] ?? null)
+            ? (dmAvatarUrlByRoom[room.slug] ?? null)
             : (room.avatarUrl ?? null);
         const resolved = resolveMediaUrl(rawAvatar);
         if (!resolved) return null;
-        return avatarLoadErrorByRoom[room.id] === resolved ? null : resolved;
+        return avatarLoadErrorByRoom[room.slug] === resolved ? null : resolved;
     };
 
     const handleAvatarLoadError = (roomId: string, url: string) => {
@@ -390,7 +390,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <img
                         src={avatarUrl}
                         alt=""
-                        onError={() => handleAvatarLoadError(room.id, avatarUrl)}
+                        onError={() => handleAvatarLoadError(room.slug, avatarUrl)}
                     />
                 ) : (
                     getInitials(fallbackName)
@@ -410,7 +410,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         .sort(byPinnedActivity);
 
     const isDmPeerOnline = (room: Room): boolean => {
-        const onlineCount = onlineCountsByRoom[room.id] ?? 0;
+        const onlineCount = onlineCountsByRoom[room.slug] ?? 0;
         return onlineCount > 1;
     };
 
@@ -448,7 +448,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         try {
             const room = await createRoom(newRoomName.trim());
             addRoom(room);
-            setActiveRoom(room.id);
+            setActiveRoom(room.slug);
             setNewRoomName('');
             closeComposer();
         } catch (err: any) {
@@ -469,7 +469,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         try {
             const room = await joinRoom(joinRoomId.trim());
             addRoom(room);
-            setActiveRoom(room.id);
+            setActiveRoom(room.slug);
             setJoinRoomId('');
             closeComposer();
         } catch (err: any) {
@@ -504,7 +504,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         try {
             const room = await acceptDmRequest(requestId);
             addRoom(room);
-            setActiveRoom(room.id);
+            setActiveRoom(room.slug);
             setIncomingRequests((prev) => prev.filter((r) => r.id !== requestId));
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to accept request';
@@ -523,11 +523,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const selectRoom = (room: Room) => {
-        setActiveRoom(room.id);
-        setRoomUnreadCount(room.id, 0);
-        markRoomRead(room.id)
+        setActiveRoom(room.slug);
+        setRoomUnreadCount(room.slug, 0);
+        markRoomRead(room.slug)
             .then((update) => {
-                setRoomUnreadCount(update.roomId, update.unreadCount ?? 0);
+                setRoomUnreadCount(update.roomSlug || room.slug, update.unreadCount ?? 0);
             })
             .catch(console.error);
         navigate('/chat');
@@ -535,8 +535,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const handleRoomInfo = (room: Room) => {
-        setActiveRoom(room.id);
-        navigate(`/chat/rooms/${room.id}/settings`);
+        setActiveRoom(room.slug);
+        navigate(`/chat/rooms/${encodeURIComponent(room.slug)}/settings`);
         setRoomMenuOpenId(null);
         onClose();
     };
@@ -550,11 +550,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const handleTogglePin = async (roomId: string) => {
-        const target = rooms.find((room) => room.id === roomId);
+        const target = rooms.find((room) => room.slug === roomId);
         if (!target) return;
         try {
             const updated = target.pinnedAt ? await unpinRoom(roomId) : await pinRoom(roomId);
-            setRooms(rooms.map((room) => (room.id === roomId ? updated : room)));
+            setRooms(rooms.map((room) => (room.slug === roomId ? updated : room)));
             setCopiedText(updated.pinnedAt ? 'Room pinned' : 'Room unpinned');
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to update pin';
@@ -567,7 +567,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const getDmParticipantSummary = async (room: Room): Promise<UserSummary | null> => {
         if (!userId) return null;
-        const members = await fetchRoomMembers(room.id);
+        const members = await fetchRoomMembers(room.slug);
         const other = members.find((member) => member.userId !== userId);
         if (!other) return null;
         return fetchUserSummary(other.userId);
@@ -614,8 +614,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 setTimeout(() => setCopiedText(''), 1800);
                 return;
             }
-            const willBlock = !blockedDmRoomIds[room.id];
-            setBlockedDmRoomIds((prev) => ({ ...prev, [room.id]: willBlock }));
+            const willBlock = !blockedDmRoomIds[room.slug];
+            setBlockedDmRoomIds((prev) => ({ ...prev, [room.slug]: willBlock }));
             const displayName = summary.fullName?.trim() || summary.username;
             setCopiedText(willBlock ? `${displayName} blocked` : `${displayName} unblocked`);
             setTimeout(() => setCopiedText(''), 1800);
@@ -631,10 +631,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         if (!userId) return;
         try {
             await removeMember(roomId, userId);
-            const nextRooms = rooms.filter((room) => room.id !== roomId);
+            const nextRooms = rooms.filter((room) => room.slug !== roomId);
             setRooms(nextRooms);
             if (activeRoomId === roomId) {
-                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].id : null);
+                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].slug : null);
             }
             setCopiedText('You left the room');
         } catch (err: any) {
@@ -655,11 +655,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }
 
         try {
-            await deleteRoom(room.id);
-            const nextRooms = rooms.filter((item) => item.id !== room.id);
+            await deleteRoom(room.slug);
+            const nextRooms = rooms.filter((item) => item.slug !== room.slug);
             setRooms(nextRooms);
-            if (activeRoomId === room.id) {
-                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].id : null);
+            if (activeRoomId === room.slug) {
+                setActiveRoom(nextRooms.length > 0 ? nextRooms[0].slug : null);
             }
             setCopiedText('Room deleted');
         } catch (err: any) {
@@ -700,11 +700,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     </div>
                     {directMessages.map((room) => (
                         <div
-                            key={room.id}
-                            className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.id ? 'room-card--unread' : ''}`}
+                            key={room.slug}
+                            className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''}`}
                             onClick={() => selectRoom(room)}
                             role="option"
-                            aria-selected={activeRoomId === room.id}
+                            aria-selected={activeRoomId === room.slug}
                             tabIndex={0}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
@@ -744,7 +744,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     type="button"
                                     className="room-menu-trigger"
                                     aria-label="Room actions"
-                                    onClick={() => setRoomMenuOpenId((prev) => (prev === room.id ? null : room.id))}
+                                    onClick={() => setRoomMenuOpenId((prev) => (prev === room.slug ? null : room.slug))}
                                 >
                                     <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
                                         <circle cx="12" cy="5" r="1.8" fill="currentColor" />
@@ -752,11 +752,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         <circle cx="12" cy="19" r="1.8" fill="currentColor" />
                                     </svg>
                                 </button>
-                                {roomMenuOpenId === room.id && (
+                                {roomMenuOpenId === room.slug && (
                                     <DmConversationMenu
                                         room={room}
-                                        muted={Boolean(mutedRoomIds[room.id])}
-                                        blocked={Boolean(blockedDmRoomIds[room.id])}
+                                        muted={Boolean(mutedRoomIds[room.slug])}
+                                        blocked={Boolean(blockedDmRoomIds[room.slug])}
                                         pinned={Boolean(room.pinnedAt)}
                                         onViewProfile={handleViewDmProfile}
                                         onToggleMute={handleToggleDmMute}
@@ -780,11 +780,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     </div>
                     {groupRooms.map((room) => (
                     <div
-                        key={room.id}
-                        className={`room-card ${activeRoomId === room.id ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.id ? 'room-card--unread' : ''}`}
+                        key={room.slug}
+                        className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''}`}
                         onClick={() => selectRoom(room)}
                         role="option"
-                        aria-selected={activeRoomId === room.id}
+                        aria-selected={activeRoomId === room.slug}
                         tabIndex={0}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -816,7 +816,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             </div>
                             <span className="room-card__meta">
                                 <span className="room-card__online-dot room-card__online-dot--online" aria-hidden="true" />
-                                {onlineCountsByRoom[room.id] ?? 0} online - {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
+                                {onlineCountsByRoom[room.slug] ?? 0} online - {room.memberCount} member{room.memberCount !== 1 ? 's' : ''}
                             </span>
                         </div>
                         <div className="room-card__actions" onClick={(e) => e.stopPropagation()}>
@@ -824,7 +824,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 type="button"
                                 className="room-menu-trigger"
                                 aria-label="Room actions"
-                                onClick={() => setRoomMenuOpenId((prev) => (prev === room.id ? null : room.id))}
+                                onClick={() => setRoomMenuOpenId((prev) => (prev === room.slug ? null : room.slug))}
                             >
                                 <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
                                     <circle cx="12" cy="5" r="1.8" fill="currentColor" />
@@ -832,12 +832,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <circle cx="12" cy="19" r="1.8" fill="currentColor" />
                                 </svg>
                             </button>
-                            {roomMenuOpenId === room.id && (
+                            {roomMenuOpenId === room.slug && (
                                 <RoomConversationMenu
                                     room={room}
-                                    muted={Boolean(mutedRoomIds[room.id])}
+                                    muted={Boolean(mutedRoomIds[room.slug])}
                                     pinned={Boolean(room.pinnedAt)}
-                                    onCopyRoomId={(roomId) => copyText(roomId, 'Room ID')}
+                                    onCopyInviteCode={(inviteCode) => copyText(inviteCode, 'Invite code')}
                                     onRoomInfo={handleRoomInfo}
                                     onToggleMute={handleToggleMute}
                                     onTogglePin={handleTogglePin}
@@ -915,7 +915,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <h4>Join Room</h4>
                             <input
                                 type="text"
-                                placeholder="Paste Room ID"
+                                placeholder="Enter invite code"
                                 value={joinRoomId}
                                 onChange={(e) => {
                                     setJoinRoomId(e.target.value);
@@ -923,7 +923,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 }}
                                 autoFocus
                             />
-                            <div className="form-helper">Ask a friend to share their Room ID.</div>
+                            <div className="form-helper">Ask a friend to share their invite code.</div>
                             {composerError && <div className="form-error">{composerError}</div>}
                             <div className="composer-actions">
                                 <button type="button" className="secondary-btn" onClick={closeComposer}>Cancel</button>

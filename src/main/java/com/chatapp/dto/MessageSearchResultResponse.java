@@ -16,6 +16,7 @@ public class MessageSearchResultResponse {
 
     private UUID messageId;
     private UUID roomId;
+    private String roomSlug;
     private String roomName;
     private String roomType;
     private UUID senderId;

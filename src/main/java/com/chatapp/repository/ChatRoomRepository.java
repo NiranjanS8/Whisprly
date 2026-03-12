@@ -14,6 +14,14 @@ import java.util.UUID;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
 
+    Optional<ChatRoom> findBySlugIgnoreCase(String slug);
+
+    Optional<ChatRoom> findByInviteCodeIgnoreCase(String inviteCode);
+
+    boolean existsBySlug(String slug);
+
+    boolean existsByInviteCode(String inviteCode);
+
     @Query("SELECT cr FROM ChatRoom cr JOIN ChatRoomMember m ON m.room = cr WHERE m.user.id = :userId ORDER BY cr.createdAt DESC")
     List<ChatRoom> findRoomsByUserId(@Param("userId") UUID userId);
 
