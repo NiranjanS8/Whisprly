@@ -720,7 +720,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {directMessages.map((room) => (
                         <div
                             key={room.slug}
-                            className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''}`}
+                            className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''} ${roomMenuOpenId === room.slug ? 'room-card--menu-open' : ''}`}
                             onClick={() => selectRoom(room)}
                             role="option"
                             aria-selected={activeRoomId === room.slug}
@@ -763,6 +763,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     type="button"
                                     className="room-menu-trigger"
                                     aria-label="Room actions"
+                                    aria-expanded={roomMenuOpenId === room.slug}
                                     onClick={() => setRoomMenuOpenId((prev) => (prev === room.slug ? null : room.slug))}
                                 >
                                     <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -771,7 +772,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         <circle cx="12" cy="19" r="1.8" fill="currentColor" />
                                     </svg>
                                 </button>
-                                {roomMenuOpenId === room.slug && (
+                            </div>
+                            {roomMenuOpenId === room.slug && (
+                                <div className="room-card__menu-popover" onClick={(e) => e.stopPropagation()}>
                                     <DmConversationMenu
                                         room={room}
                                         muted={Boolean(mutedRoomIds[room.slug])}
@@ -783,8 +786,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         onClearChat={handleClearDmChat}
                                         onToggleBlockUser={handleToggleBlockDmUser}
                                     />
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                     {directMessages.length === 0 && (
@@ -800,7 +803,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {groupRooms.map((room) => (
                     <div
                         key={room.slug}
-                        className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''}`}
+                        className={`room-card ${activeRoomId === room.slug ? 'room-card--active' : ''} ${(room.unreadCount ?? 0) > 0 && activeRoomId !== room.slug ? 'room-card--unread' : ''} ${roomMenuOpenId === room.slug ? 'room-card--menu-open' : ''}`}
                         onClick={() => selectRoom(room)}
                         role="option"
                         aria-selected={activeRoomId === room.slug}
@@ -843,6 +846,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 type="button"
                                 className="room-menu-trigger"
                                 aria-label="Room actions"
+                                aria-expanded={roomMenuOpenId === room.slug}
                                 onClick={() => setRoomMenuOpenId((prev) => (prev === room.slug ? null : room.slug))}
                             >
                                 <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -851,7 +855,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <circle cx="12" cy="19" r="1.8" fill="currentColor" />
                                 </svg>
                             </button>
-                            {roomMenuOpenId === room.slug && (
+                        </div>
+                        {roomMenuOpenId === room.slug && (
+                            <div className="room-card__menu-popover" onClick={(e) => e.stopPropagation()}>
                                 <RoomConversationMenu
                                     room={room}
                                     muted={Boolean(mutedRoomIds[room.slug])}
@@ -863,8 +869,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     onLeaveRoom={handleLeaveRoom}
                                     onDeleteRoom={handleDeleteRoom}
                                 />
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                     ))}
                     {groupRooms.length === 0 && (
@@ -1011,7 +1017,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         aria-expanded={actionMenuOpen}
                         onClick={() => setActionMenuOpen((prev) => !prev)}
                     >
-                        New Room
+                        <span className="sidebar-action-btn__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                            </svg>
+                        </span>
                     </button>
                 </div>
             </div>
