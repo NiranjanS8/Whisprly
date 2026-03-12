@@ -66,6 +66,13 @@ public class DmRequestService {
         return toResponse(request);
     }
 
+    @Transactional
+    public DmRequestResponse sendRequestByUsername(UUID requesterId, String targetUsername) {
+        User target = userRepository.findByUsernameIgnoreCase(targetUsername.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", targetUsername));
+        return sendRequest(requesterId, target.getId());
+    }
+
     @Transactional(readOnly = true)
     public List<DmRequestResponse> getIncoming(UUID userId) {
         return dmRequestRepository.findIncomingByTargetUserId(userId, DmRequestStatus.PENDING)

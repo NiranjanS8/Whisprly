@@ -58,15 +58,17 @@ public class UserController {
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        UserSummaryResponse response = UserSummaryResponse.builder()
-                .id(targetUser.getId())
-                .username(targetUser.getUsername())
-                .fullName(targetUser.getFullName())
-                .avatarUrl(targetUser.getAvatarUrl())
-                .online(presenceService.isOnline(targetUser.getId()))
-                .build();
+        return ResponseEntity.ok(toSummaryResponse(targetUser));
+    }
 
-        return ResponseEntity.ok(response);
+    @GetMapping("/by-username/{username}/summary")
+    public ResponseEntity<UserSummaryResponse> getUserSummaryByUsername(
+            @PathVariable String username,
+            @AuthenticationPrincipal User currentUser) {
+        User targetUser = userRepository.findByUsernameIgnoreCase(username.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
+
+        return ResponseEntity.ok(toSummaryResponse(targetUser));
     }
 
     @PutMapping("/me")
@@ -116,6 +118,16 @@ public class UserController {
                 .fullName(user.getFullName())
                 .bio(user.getBio())
                 .avatarUrl(user.getAvatarUrl())
+                .build();
+    }
+
+    private UserSummaryResponse toSummaryResponse(User user) {
+        return UserSummaryResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .avatarUrl(user.getAvatarUrl())
+                .online(presenceService.isOnline(user.getId()))
                 .build();
     }
 }

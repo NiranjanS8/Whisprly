@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../auth/authStore';
-import { fetchMyProfile, fetchUserSummary, updateMyProfile } from './profileApi';
+import { fetchMyProfile, fetchUserSummary, fetchUserSummaryByUsername, updateMyProfile } from './profileApi';
 import type { UserProfile } from './profileApi';
 import './profile.css';
 
@@ -47,9 +47,11 @@ export default function ProfilePage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const viewUserId = searchParams.get('userId');
+    const viewUsername = searchParams.get('username');
     const setUsername = useAuthStore((s) => s.setUsername);
     const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
     const myUserId = useAuthStore((s) => s.userId);
+    const myUsername = useAuthStore((s) => s.username);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -65,10 +67,18 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        if (viewUserId && viewUserId !== myUserId) {
+        const isViewingOtherUserById = viewUserId && viewUserId !== myUserId;
+        const isViewingOtherUserByUsername = viewUsername && viewUsername.toLowerCase() !== (myUsername ?? '').toLowerCase();
+
+        if (isViewingOtherUserById || isViewingOtherUserByUsername) {
             let mounted = true;
             setLoading(true);
-            fetchUserSummary(viewUserId)
+            setReadonlyProfile(null);
+            const request = isViewingOtherUserByUsername
+                ? fetchUserSummaryByUsername(viewUsername!)
+                : fetchUserSummary(viewUserId!);
+
+            request
                 .then((summary) => {
                     if (!mounted) return;
                     setReadonlyProfile({
@@ -92,6 +102,7 @@ export default function ProfilePage() {
         }
 
         let mounted = true;
+        setReadonlyProfile(null);
         fetchMyProfile()
             .then((profile) => {
                 if (!mounted) return;
@@ -114,7 +125,7 @@ export default function ProfilePage() {
         return () => {
             mounted = false;
         };
-    }, [viewUserId, myUserId]);
+    }, [viewUserId, viewUsername, myUserId, myUsername]);
 
     const displayName = useMemo(() => form.fullName.trim() || form.username.trim(), [form.fullName, form.username]);
 

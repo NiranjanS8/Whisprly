@@ -28,6 +28,14 @@ public class DmRequestController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/by-username/{username}")
+    public ResponseEntity<DmRequestResponse> sendRequestByUsername(
+            @PathVariable String username,
+            @AuthenticationPrincipal User currentUser) {
+        DmRequestResponse response = dmRequestService.sendRequestByUsername(currentUser.getId(), username);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @GetMapping("/incoming")
     public ResponseEntity<List<DmRequestResponse>> getIncoming(@AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(dmRequestService.getIncoming(currentUser.getId()));

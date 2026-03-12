@@ -326,6 +326,13 @@ public class ChatRoomService {
         return toResponse(room, 2, ownerMember.getPinnedAt(), 0);
     }
 
+    @Transactional
+    public ChatRoomResponse getOrCreateDmRoomByUsername(UUID userId, String targetUsername) {
+        User targetUser = userRepository.findByUsernameIgnoreCase(targetUsername.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", targetUsername));
+        return getOrCreateDmRoom(userId, targetUser.getId());
+    }
+
     private ChatRoomResponse toResponse(ChatRoom room, int memberCount, Instant pinnedAt, int unreadCount) {
         return ChatRoomResponse.builder()
                 .id(room.getId())

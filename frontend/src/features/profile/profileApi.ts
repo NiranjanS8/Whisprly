@@ -39,3 +39,8 @@ export async function fetchUserSummary(userId: string): Promise<UserSummary> {
     const res = await httpClient.get<UserSummary>(`/users/${userId}/summary`);
     return res.data;
 }
+
+export async function fetchUserSummaryByUsername(username: string): Promise<UserSummary> {
+    const res = await httpClient.get<UserSummary>(`/users/by-username/${encodeURIComponent(username)}/summary`);
+    return res.data;
+}

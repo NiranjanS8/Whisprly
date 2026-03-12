@@ -131,6 +131,14 @@ public class ChatRoomController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/dm/by-username/{username}")
+    public ResponseEntity<ChatRoomResponse> startDmByUsername(
+            @PathVariable String username,
+            @AuthenticationPrincipal User currentUser) {
+        ChatRoomResponse response = chatRoomService.getOrCreateDmRoomByUsername(currentUser.getId(), username);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{roomId}/pin")
     public ResponseEntity<ChatRoomResponse> pinRoom(
             @PathVariable UUID roomId,

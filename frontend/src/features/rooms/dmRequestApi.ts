@@ -12,8 +12,8 @@ export interface DmRequest {
     respondedAt: string | null;
 }
 
-export async function sendDmRequest(targetUserId: string): Promise<DmRequest> {
-    const res = await httpClient.post<DmRequest>(`/dm-requests/${targetUserId}`);
+export async function sendDmRequest(username: string): Promise<DmRequest> {
+    const res = await httpClient.post<DmRequest>(`/dm-requests/by-username/${encodeURIComponent(username)}`);
     return res.data;
 }
 

@@ -168,7 +168,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const [newRoomName, setNewRoomName] = useState('');
     const [joinRoomId, setJoinRoomId] = useState('');
-    const [targetUserId, setTargetUserId] = useState('');
+    const [targetUsername, setTargetUsername] = useState('');
 
     const [creating, setCreating] = useState(false);
     const [joining, setJoining] = useState(false);
@@ -482,15 +482,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const handleSendDmRequest = async (e: FormEvent) => {
         e.preventDefault();
-        if (!targetUserId.trim() || sendingDmRequest) return;
+        if (!targetUsername.trim() || sendingDmRequest) return;
 
         setSendingDmRequest(true);
         setComposerError('');
         setComposerSuccess('');
 
         try {
-            await sendDmRequest(targetUserId.trim());
-            setTargetUserId('');
+            await sendDmRequest(targetUsername.trim());
+            setTargetUsername('');
             setComposerSuccess('Request sent');
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to send request';
@@ -581,7 +581,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 setTimeout(() => setCopiedText(''), 1800);
                 return;
             }
-            navigate(`/profile?userId=${summary.id}`);
+            navigate(`/profile?username=${encodeURIComponent(summary.username)}`);
             onClose();
         } catch {
             setCopiedText('Failed to open profile');
@@ -939,21 +939,21 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <h4>New Chat</h4>
                             <input
                                 type="text"
-                                placeholder="Paste User ID"
-                                value={targetUserId}
+                                placeholder="Enter username"
+                                value={targetUsername}
                                 onChange={(e) => {
-                                    setTargetUserId(e.target.value);
+                                    setTargetUsername(e.target.value);
                                     setComposerError('');
                                     setComposerSuccess('');
                                 }}
                                 autoFocus
                             />
-                            <div className="form-helper">Ask a friend to share their User ID.</div>
+                            <div className="form-helper">Enter a username like an Instagram handle.</div>
                             {composerError && <div className="form-error">{composerError}</div>}
                             {composerSuccess && <div className="form-success">{composerSuccess}</div>}
                             <div className="composer-actions">
                                 <button type="button" className="secondary-btn" onClick={closeComposer}>Cancel</button>
-                                <button type="submit" className="primary-btn" disabled={sendingDmRequest || !targetUserId.trim()}>
+                                <button type="submit" className="primary-btn" disabled={sendingDmRequest || !targetUsername.trim()}>
                                     {sendingDmRequest ? 'Sending...' : 'Send Request'}
                                 </button>
                             </div>
@@ -974,14 +974,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 type="button"
                                 className="room-menu__item"
                                 onClick={() => {
-                                    if (userId) {
-                                        copyText(userId, 'User ID');
+                                    if (username) {
+                                        copyText(`@${username}`, 'Username');
                                     }
                                     setActionMenuOpen(false);
                                 }}
-                                disabled={!userId}
+                                disabled={!username}
                             >
-                                Copy My User ID
+                                Copy My Username
                             </button>
                         </div>
                     )}
