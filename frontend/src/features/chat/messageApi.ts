@@ -11,6 +11,7 @@ interface PagedResponse<T> {
 
 interface MessageDto {
     id: string;
+    messageType?: 'USER' | 'SYSTEM';
     content: string;
     attachment?: {
         fileName: string;
@@ -57,6 +58,7 @@ function toChatMessage(m: MessageDto, roomId: string): ChatMessage {
     return {
         id: m.id,
         idempotencyKey: m.idempotencyKey ?? m.id,
+        messageType: m.messageType ?? 'USER',
         content: m.content,
         attachment: normalizedAttachment,
         senderId: m.senderId,

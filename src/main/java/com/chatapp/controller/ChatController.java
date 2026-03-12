@@ -1,13 +1,10 @@
 package com.chatapp.controller;
 
 import com.chatapp.dto.ChatMessageRequest;
-import com.chatapp.dto.ChatMessageResponse;
-import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.TypingEventRequest;
 import com.chatapp.dto.TypingEventResponse;
 import com.chatapp.model.ChatRoom;
 import com.chatapp.repository.ChatRoomMemberRepository;
-import com.chatapp.service.ChatRoomService;
 import com.chatapp.service.MessageService;
 import com.chatapp.service.RoomPublicIdService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +28,6 @@ public class ChatController {
     private final MessageService messageService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatRoomMemberRepository memberRepository;
-    private final ChatRoomService chatRoomService;
     private final RoomPublicIdService roomPublicIdService;
 
     @MessageMapping("/chat/{roomKey}")
@@ -49,20 +45,7 @@ public class ChatController {
 
         ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
 
-        ChatMessageResponse response = messageService.sendMessage(
-                room.getId(), senderId, request.getContent(), request.getIdempotencyKey());
-
-        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
-
-        for (RoomUnreadUpdateResponse unreadUpdate : chatRoomService.getUnreadUpdatesForRoom(room.getId())) {
-            if (unreadUpdate.getUserId() == null) {
-                continue;
-            }
-            messagingTemplate.convertAndSendToUser(
-                    unreadUpdate.getUserId().toString(),
-                    "/queue/rooms/unread",
-                    unreadUpdate);
-        }
+        messageService.sendMessage(room.getId(), senderId, request.getContent(), request.getIdempotencyKey());
     }
 
     @MessageMapping("/typing/{roomKey}")

@@ -4,6 +4,7 @@ import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.MemberResponse;
 import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.RoomSettingsRequest;
+import com.chatapp.event.RoomUpsertedEvent;
 import com.chatapp.exception.DuplicateResourceException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.ChatRoom;
@@ -17,6 +18,7 @@ import com.chatapp.repository.MessageRepository;
 import com.chatapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,8 @@ public class ChatRoomService {
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final RoomPublicIdService roomPublicIdService;
+    private final MessageService messageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ChatRoomResponse createRoom(String name, UUID creatorId, Integer maxMembers, String allowedMediaTypes) {
@@ -71,7 +75,9 @@ public class ChatRoomService {
 
         log.info("Room created: id={}, name={}, creator={}", room.getId(), name, creatorId);
 
-        return toResponse(room, 1, null, 0);
+        ChatRoomResponse response = toResponse(room, 1, null, 0);
+        publishRoomUpsert(room.getId(), List.of(creatorId));
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -162,7 +168,9 @@ public class ChatRoomService {
         int memberCount = memberRepository.findMembersWithUserByRoomId(roomId).size();
         log.info("Room settings updated: roomId={}, updatedBy={}", roomId, userId);
         int unreadCount = computeUnreadCount(roomId, userId, resolveReadBaseline(requester));
-        return toResponse(room, memberCount, requester.getPinnedAt(), unreadCount);
+        ChatRoomResponse response = toResponse(room, memberCount, requester.getPinnedAt(), unreadCount);
+        publishRoomUpsert(roomId, getRoomMemberUserIds(roomId));
+        return response;
     }
 
     @Transactional
@@ -197,7 +205,13 @@ public class ChatRoomService {
 
         log.info("User joined room: roomId={}, userId={}", roomId, userId);
 
-        return toResponse(room, currentCount + 1, member.getPinnedAt(), 0);
+        messageService.createSystemMessage(roomId, userId, user.getUsername() + " joined the room");
+        member.setLastReadAt(Instant.now());
+        memberRepository.save(member);
+
+        ChatRoomResponse response = toResponse(room, currentCount + 1, member.getPinnedAt(), 0);
+        publishRoomUpsert(roomId, getRoomMemberUserIds(roomId));
+        return response;
     }
 
     @Transactional
@@ -241,6 +255,10 @@ public class ChatRoomService {
 
         log.info("Member added: roomId={}, userId={}, addedBy={}", roomId, targetUserId, requesterId);
 
+        messageService.createSystemMessage(roomId, targetUserId, targetUser.getUsername() + " joined the room");
+        member.setLastReadAt(Instant.now());
+        memberRepository.save(member);
+        publishRoomUpsert(roomId, getRoomMemberUserIds(roomId));
         return toMemberResponse(member);
     }
 
@@ -334,7 +352,9 @@ public class ChatRoomService {
 
         ChatRoomMember ownerMember = memberRepository.findByRoomIdAndUserId(room.getId(), userId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
-        return toResponse(room, 2, ownerMember.getPinnedAt(), 0);
+        ChatRoomResponse response = toResponse(room, 2, ownerMember.getPinnedAt(), 0);
+        publishRoomUpsert(room.getId(), List.of(userId, targetUserId));
+        return response;
     }
 
     @Transactional
@@ -398,7 +418,9 @@ public class ChatRoomService {
         log.info("Ownership transferred: roomId={}, oldOwner={}, newOwner={}", roomId, requesterId, newOwnerId);
 
         int unreadCount = computeUnreadCount(roomId, requesterId, resolveReadBaseline(requester));
-        return toResponse(room, memberCount, requester.getPinnedAt(), unreadCount);
+        ChatRoomResponse response = toResponse(room, memberCount, requester.getPinnedAt(), unreadCount);
+        publishRoomUpsert(roomId, getRoomMemberUserIds(roomId));
+        return response;
     }
 
     @Transactional
@@ -493,6 +515,20 @@ public class ChatRoomService {
 
     private int computeUnreadCount(UUID roomId, UUID userId, Instant since) {
         return Math.toIntExact(messageRepository.countUnreadMessages(roomId, userId, since));
+    }
+
+    private List<UUID> getRoomMemberUserIds(UUID roomId) {
+        return memberRepository.findMembersWithUserByRoomId(roomId).stream()
+                .map(member -> member.getUser().getId())
+                .distinct()
+                .toList();
+    }
+
+    private void publishRoomUpsert(UUID roomId, List<UUID> recipientUserIds) {
+        if (roomId == null || recipientUserIds == null || recipientUserIds.isEmpty()) {
+            return;
+        }
+        eventPublisher.publishEvent(new RoomUpsertedEvent(roomId, recipientUserIds));
     }
 
     private MemberResponse toMemberResponse(ChatRoomMember member) {

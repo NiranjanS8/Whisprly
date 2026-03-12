@@ -25,7 +25,7 @@ public class MessageExpirationScheduler {
         }
 
         expiredMessages.forEach((message) ->
-                messagingTemplate.convertAndSend("/topic/room/" + message.getRoomId(), message));
+                messagingTemplate.convertAndSend("/topic/room/" + message.getRoomSlug(), message));
         log.debug("Expired {} messages", expiredMessages.size());
     }
 }

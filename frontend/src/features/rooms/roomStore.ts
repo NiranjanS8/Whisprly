@@ -9,6 +9,7 @@ interface RoomState {
     lastActivityByRoom: Record<string, string>;
     setRooms: (rooms: Room[]) => void;
     addRoom: (room: Room) => void;
+    upsertRoom: (room: Room) => void;
     setActiveRoom: (roomId: string | null) => void;
     setOnlineCountsByRoom: (onlineCountsByRoom: Record<string, number>) => void;
     setLastActivityByRoom: (lastActivityByRoom: Record<string, string>) => void;
@@ -45,7 +46,28 @@ export const useRoomStore = create<RoomState>()(
                 }),
 
             addRoom: (room) =>
-                set((state) => ({ rooms: [room, ...state.rooms] })),
+                set((state) => {
+                    const existingIndex = state.rooms.findIndex((entry) => entry.id === room.id || entry.slug === room.slug);
+                    if (existingIndex === -1) {
+                        return { rooms: [room, ...state.rooms] };
+                    }
+
+                    const nextRooms = [...state.rooms];
+                    nextRooms[existingIndex] = { ...nextRooms[existingIndex], ...room };
+                    return { rooms: nextRooms };
+                }),
+
+            upsertRoom: (room) =>
+                set((state) => {
+                    const existingIndex = state.rooms.findIndex((entry) => entry.id === room.id || entry.slug === room.slug);
+                    if (existingIndex === -1) {
+                        return { rooms: [room, ...state.rooms] };
+                    }
+
+                    const nextRooms = [...state.rooms];
+                    nextRooms[existingIndex] = { ...nextRooms[existingIndex], ...room };
+                    return { rooms: nextRooms };
+                }),
 
             setActiveRoom: (roomId) => set({ activeRoomId: roomId }),
 
@@ -80,13 +102,20 @@ export const useRoomStore = create<RoomState>()(
                 }),
 
             setRoomUnreadCount: (roomId, unreadCount) =>
-                set((state) => ({
-                    rooms: state.rooms.map((room) =>
-                        room.slug === roomId
-                            ? { ...room, unreadCount }
-                            : room
-                    ),
-                })),
+                set((state) => {
+                    const existingRoom = state.rooms.find((room) => room.slug === roomId);
+                    if (!existingRoom || (existingRoom.unreadCount ?? 0) === unreadCount) {
+                        return state;
+                    }
+
+                    return {
+                        rooms: state.rooms.map((room) =>
+                            room.slug === roomId
+                                ? { ...room, unreadCount }
+                                : room
+                        ),
+                    };
+                }),
         }),
         {
             name: 'whisprly-room-storage',

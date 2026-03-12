@@ -6,7 +6,11 @@ import type { ChatMessage } from './chatStore';
 import { normalizeApiPath } from '../../shared/utils';
 import { usePresenceStore } from '../presence/presenceStore';
 import { useRoomStore } from '../rooms/roomStore';
+import type { Room } from '../rooms/roomApi';
 import { useAuthStore } from '../auth/authStore';
+import { useDmRequestStore } from '../rooms/dmRequestStore';
+import type { DmRequest } from '../rooms/dmRequestApi';
+import { useToastStore } from '../notifications/toastStore';
 
 const backendOrigin = import.meta.env.VITE_BACKEND_ORIGIN;
 const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || `${backendOrigin || 'http://localhost:9090'}/ws`;
@@ -22,6 +26,8 @@ class WebSocketService {
     private presenceTopicSub: StompSubscription | null = null;
     private presenceQueueSub: StompSubscription | null = null;
     private unreadQueueSub: StompSubscription | null = null;
+    private roomUpdatesQueueSub: StompSubscription | null = null;
+    private dmRequestQueueSub: StompSubscription | null = null;
 
     connect(token: string) {
         if (this.client?.active) {
@@ -42,6 +48,8 @@ class WebSocketService {
                 useChatStore.getState().setReconnectAttempt(0);
                 this.subscribePresenceChannels();
                 this.subscribeUnreadChannel();
+                this.subscribeRoomUpdatesChannel();
+                this.subscribeDmRequestChannel();
 
                 // Re-subscribe active room topics after reconnect.
                 this.subscriptionRefCounts.forEach((count, roomId) => {
@@ -122,6 +130,50 @@ class WebSocketService {
         });
     }
 
+    private subscribeRoomUpdatesChannel() {
+        if (!this.client?.connected) return;
+        if (this.roomUpdatesQueueSub) return;
+
+        this.roomUpdatesQueueSub = this.client.subscribe('/user/queue/rooms/updates', (message: IMessage) => {
+            try {
+                const room = JSON.parse(message.body) as Room;
+                if (!room?.slug) return;
+                const existingRoom = useRoomStore.getState().rooms.find(
+                    (entry) => entry.id === room.id || entry.slug === room.slug
+                );
+                useRoomStore.getState().upsertRoom(room);
+                if (!existingRoom) {
+                    useToastStore.getState().pushToast({
+                        title: room.type === 'DM' ? 'New conversation ready' : 'Added to room',
+                        message: room.type === 'DM' ? room.name : `${room.name} is now in your list`,
+                        tone: 'success',
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to parse room update:', error);
+            }
+        });
+    }
+
+    private subscribeDmRequestChannel() {
+        if (!this.client?.connected) return;
+        if (this.dmRequestQueueSub) return;
+
+        this.dmRequestQueueSub = this.client.subscribe('/user/queue/dm-requests/incoming', (message: IMessage) => {
+            try {
+                const request = JSON.parse(message.body) as DmRequest;
+                if (!request?.id) return;
+                useDmRequestStore.getState().prependIncomingRequest(request);
+                useToastStore.getState().pushToast({
+                    title: 'New DM request',
+                    message: `@${request.requesterUsername} wants to chat`,
+                });
+            } catch (error) {
+                console.error('Failed to parse incoming DM request:', error);
+            }
+        });
+    }
+
     private scheduleReconnect() {
         if (!this.currentToken) return;
 
@@ -172,6 +224,7 @@ class WebSocketService {
                 const chatMsg: ChatMessage = {
                     id: body.id,
                     idempotencyKey: body.idempotencyKey ?? body.id,
+                    messageType: body.messageType ?? 'USER',
                     content: body.content,
                     attachment: body.attachment
                         ? { ...body.attachment, url: normalizeApiPath(body.attachment.url) }
@@ -200,6 +253,13 @@ class WebSocketService {
                 }
 
                 useRoomStore.getState().touchRoomActivity(resolvedRoomId, chatMsg.createdAt);
+                const authState = useAuthStore.getState();
+                const activeRoomId = useRoomStore.getState().activeRoomId;
+                const sourceRoom = useRoomStore.getState().rooms.find((entry) => entry.slug === resolvedRoomId);
+                const isIncomingUserMessage =
+                    chatMsg.messageType !== 'SYSTEM' &&
+                    authState.userId != null &&
+                    chatMsg.senderId !== authState.userId;
 
                 const isOwnOptimistic = roomMessages.some(
                     (m) => m.idempotencyKey === chatMsg.idempotencyKey && m.status === 'sending'
@@ -216,6 +276,15 @@ class WebSocketService {
                     }, 900);
                 } else {
                     store.appendMessage(resolvedRoomId, chatMsg);
+                }
+
+                if (isIncomingUserMessage && activeRoomId !== resolvedRoomId) {
+                    const senderLabel = chatMsg.senderFullName?.trim() || chatMsg.senderUsername;
+                    const roomLabel = sourceRoom?.name?.trim() || resolvedRoomId;
+                    useToastStore.getState().pushToast({
+                        title: sourceRoom?.type === 'DM' ? senderLabel : `${roomLabel} • ${senderLabel}`,
+                        message: chatMsg.content?.trim() || (chatMsg.attachment ? 'Sent an attachment' : 'New message'),
+                    });
                 }
             } catch (e) {
                 console.error('Failed to parse message:', e);
@@ -324,6 +393,14 @@ class WebSocketService {
         if (this.unreadQueueSub) {
             this.unreadQueueSub.unsubscribe();
             this.unreadQueueSub = null;
+        }
+        if (this.roomUpdatesQueueSub) {
+            this.roomUpdatesQueueSub.unsubscribe();
+            this.roomUpdatesQueueSub = null;
+        }
+        if (this.dmRequestQueueSub) {
+            this.dmRequestQueueSub.unsubscribe();
+            this.dmRequestQueueSub = null;
         }
         this.currentToken = null;
 

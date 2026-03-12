@@ -15,6 +15,7 @@ export interface ChatAttachment {
 export interface ChatMessage {
     id?: string;
     idempotencyKey: string;
+    messageType?: 'USER' | 'SYSTEM';
     content: string;
     attachment?: ChatAttachment;
     senderId: string;

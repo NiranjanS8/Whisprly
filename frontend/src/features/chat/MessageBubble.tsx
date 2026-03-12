@@ -131,10 +131,19 @@ const MessageBubble = React.memo(function MessageBubble({
     const isVideo = attachment?.category === 'VIDEO';
     const isVisualPreview = isImage || isVideo;
     const isDeleted = !!message.deletedAt;
+    const isSystem = message.messageType === 'SYSTEM';
     const canEdit = isOwn && !!message.id && !isDeleted && message.status !== 'sending';
     const canPin = !!message.id && !isDeleted && message.status !== 'sending';
     const showActions = (canEdit || canPin) && !isDeleted;
     const hasExpiry = !!message.expiresAt && !isDeleted;
+
+    if (isSystem) {
+        return (
+            <div className="msg msg--system" role="status" aria-live="polite">
+                <div className="msg__system-pill">{message.content}</div>
+            </div>
+        );
+    }
 
     useEffect(() => {
         let active = true;

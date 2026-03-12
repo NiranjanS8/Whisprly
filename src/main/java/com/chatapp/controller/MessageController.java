@@ -3,6 +3,7 @@ package com.chatapp.controller;
 import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.MessageEditRequest;
 import com.chatapp.dto.MessageSearchResultResponse;
+import com.chatapp.dto.PageResponse;
 import com.chatapp.model.AttachmentCategory;
 import com.chatapp.model.ChatRoom;
 import com.chatapp.model.User;
@@ -34,14 +35,14 @@ public class MessageController {
     private final SimpMessagingTemplate messagingTemplate;
 
     @GetMapping("/{roomKey}/messages")
-    public ResponseEntity<Page<ChatMessageResponse>> getMessages(
+    public ResponseEntity<PageResponse<ChatMessageResponse>> getMessages(
             @PathVariable String roomKey,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @AuthenticationPrincipal User currentUser) {
         ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         Page<ChatMessageResponse> messages = messageService.getMessageHistory(room.getId(), currentUser.getId(), page, size);
-        return ResponseEntity.ok(messages);
+        return ResponseEntity.ok(PageResponse.from(messages));
     }
 
     @GetMapping("/{roomKey}/messages/{messageId}")
@@ -89,8 +90,6 @@ public class MessageController {
                 file,
                 idempotencyKey
         );
-
-        messagingTemplate.convertAndSend("/topic/room/" + room.getSlug(), response);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

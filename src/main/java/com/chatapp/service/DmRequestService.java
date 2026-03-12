@@ -2,6 +2,7 @@ package com.chatapp.service;
 
 import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.DmRequestResponse;
+import com.chatapp.event.DmRequestCreatedEvent;
 import com.chatapp.exception.DuplicateResourceException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.DmRequest;
@@ -13,6 +14,7 @@ import com.chatapp.repository.DmRequestRepository;
 import com.chatapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class DmRequestService {
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomService chatRoomService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public DmRequestResponse sendRequest(UUID requesterId, UUID targetUserId) {
@@ -63,7 +66,9 @@ public class DmRequestService {
 
         request = dmRequestRepository.save(request);
         log.info("DM request sent: requestId={}, from={}, to={}", request.getId(), requesterId, targetUserId);
-        return toResponse(request);
+        DmRequestResponse response = toResponse(request);
+        eventPublisher.publishEvent(new DmRequestCreatedEvent(targetUserId, response));
+        return response;
     }
 
     @Transactional

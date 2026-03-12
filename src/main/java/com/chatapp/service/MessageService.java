@@ -4,11 +4,13 @@ import com.chatapp.dto.ChatMessageResponse;
 import com.chatapp.dto.AttachmentResponse;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.dto.MessageSearchResultResponse;
+import com.chatapp.event.MessageCreatedEvent;
 import com.chatapp.model.AttachmentCategory;
 import com.chatapp.model.ChatRoom;
 import com.chatapp.model.ChatRoomMember;
 import com.chatapp.model.MemberRole;
 import com.chatapp.model.Message;
+import com.chatapp.model.MessageType;
 import com.chatapp.model.User;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.ChatRoomRepository;
@@ -22,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final AttachmentValidationService attachmentValidationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ChatMessageResponse sendMessage(UUID roomId, UUID senderId, String content, UUID idempotencyKey) {
@@ -81,7 +85,9 @@ public class MessageService {
 
         log.info("Message sent: roomId={}, senderId={}", roomId, senderId);
 
-        return toResponse(message);
+        ChatMessageResponse response = toResponse(message);
+        eventPublisher.publishEvent(new MessageCreatedEvent(room.getId(), room.getSlug(), response));
+        return response;
     }
 
     @Transactional
@@ -122,8 +128,35 @@ public class MessageService {
         message = messageRepository.save(message);
         message.setAttachmentUrl(buildAttachmentUrl(room.getSlug(), message.getId()));
         message = messageRepository.save(message);
+        ChatMessageResponse response = toResponse(message);
+        eventPublisher.publishEvent(new MessageCreatedEvent(room.getId(), room.getSlug(), response));
+        return response;
+    }
 
-        return toResponse(message);
+    @Transactional
+    public ChatMessageResponse createSystemMessage(UUID roomId, UUID actorUserId, String content) {
+        if (content == null || content.trim().isEmpty()) {
+            throw new IllegalArgumentException("System message content is required");
+        }
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
+
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", actorUserId));
+
+        Message message = Message.builder()
+                .room(room)
+                .sender(actor)
+                .content(content.trim())
+                .messageType(MessageType.SYSTEM)
+                .expiresAt(resolveExpiration(room))
+                .build();
+
+        message = messageRepository.save(message);
+        ChatMessageResponse response = toResponse(message);
+        eventPublisher.publishEvent(new MessageCreatedEvent(room.getId(), room.getSlug(), response));
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -373,6 +406,7 @@ public class MessageService {
                 .senderUsername(message.getSender().getUsername())
                 .senderFullName(message.getSender().getFullName())
                 .senderAvatarUrl(message.getSender().getAvatarUrl())
+                .messageType(message.getMessageType() == null ? MessageType.USER.name() : message.getMessageType().name())
                 .content(message.getContent())
                 .attachment(attachment)
                 .createdAt(message.getCreatedAt())

@@ -1,10 +1,10 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRoomStore } from './roomStore';
 import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMembers, type Member, pinRoom, unpinRoom, markRoomRead } from './roomApi';
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
-import type { DmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
+import { useDmRequestStore } from './dmRequestStore';
 import { fetchUserSummary, type UserSummary } from '../profile/profileApi';
 import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from '../chat/chatStore';
@@ -178,7 +178,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [composerSuccess, setComposerSuccess] = useState('');
     const [copiedText, setCopiedText] = useState('');
 
-    const [incomingRequests, setIncomingRequests] = useState<DmRequest[]>([]);
     const [loadingIncoming, setLoadingIncoming] = useState(false);
     const [search, setSearch] = useState('');
     const [mutedRoomIds, setMutedRoomIds] = useState<Record<string, boolean>>({});
@@ -187,13 +186,33 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [dmAvatarUrlByRoom, setDmAvatarUrlByRoom] = useState<Record<string, string | null>>({});
     const [roomMemberIdsByRoom, setRoomMemberIdsByRoom] = useState<Record<string, string[]>>({});
     const [avatarLoadErrorByRoom, setAvatarLoadErrorByRoom] = useState<Record<string, string>>({});
+    const incomingRequests = useDmRequestStore((s) => s.incomingRequests);
+    const setIncomingRequests = useDmRequestStore((s) => s.setIncomingRequests);
+    const removeIncomingRequest = useDmRequestStore((s) => s.removeIncomingRequest);
+    const roomSlugKey = useMemo(() => rooms.map((room) => room.slug).join('|'), [rooms]);
+    const roomMembershipKey = useMemo(
+        () => rooms.map((room) => `${room.slug}:${room.memberCount}:${room.type}`).join('|'),
+        [rooms]
+    );
+    const roomActivitySeed = useMemo(
+        () => rooms.map((room) => ({ slug: room.slug, createdAt: room.createdAt })),
+        [roomSlugKey]
+    );
+    const roomSubscriptionSlugs = useMemo(
+        () => rooms.map((room) => room.slug),
+        [roomSlugKey]
+    );
+    const roomMembershipSeed = useMemo(
+        () => rooms.map((room) => ({ slug: room.slug, type: room.type })),
+        [roomMembershipKey]
+    );
 
     useEffect(() => {
         fetchRooms().then(setRooms).catch(console.error);
     }, [setRooms]);
 
     useEffect(() => {
-        if (rooms.length === 0) {
+        if (roomActivitySeed.length === 0) {
             setLastActivityByRoom({});
             return;
         }
@@ -202,16 +221,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         const loadLastActivity = async () => {
             const nextActivity: Record<string, string> = {};
-            rooms.forEach((room) => {
+            roomActivitySeed.forEach((room) => {
                 nextActivity[room.slug] = room.createdAt;
             });
 
             const latestMessages = await Promise.all(
-                rooms.map((room) => fetchMessages(room.slug, 0, 20).catch(() => []))
+                roomActivitySeed.map((room) => fetchMessages(room.slug, 0, 20).catch(() => []))
             );
 
-            for (let index = 0; index < rooms.length; index++) {
-                const room = rooms[index];
+            for (let index = 0; index < roomActivitySeed.length; index++) {
+                const room = roomActivitySeed[index];
                 const latestForRoom = (latestMessages[index] ?? []).reduce<string | null>((latestAt, msg) => {
                     if (!latestAt) return msg.createdAt;
                     return new Date(msg.createdAt).getTime() > new Date(latestAt).getTime()
@@ -241,15 +260,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return () => {
             cancelled = true;
         };
-    }, [rooms, setLastActivityByRoom]);
+    }, [roomActivitySeed, setLastActivityByRoom]);
 
     useEffect(() => {
-        if (rooms.length === 0) return;
-        rooms.forEach((room) => wsService.subscribeToRoom(room.slug));
+        if (roomSubscriptionSlugs.length === 0) return;
+        roomSubscriptionSlugs.forEach((roomSlug) => wsService.subscribeToRoom(roomSlug));
         return () => {
-            rooms.forEach((room) => wsService.unsubscribeFromRoom(room.slug));
+            roomSubscriptionSlugs.forEach((roomSlug) => wsService.unsubscribeFromRoom(roomSlug));
         };
-    }, [rooms]);
+    }, [roomSubscriptionSlugs]);
 
     useEffect(() => {
         setLoadingIncoming(true);
@@ -260,7 +279,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     }, []);
 
     useEffect(() => {
-        if (rooms.length === 0) {
+        if (roomMembershipSeed.length === 0) {
             setRoomMemberIdsByRoom({});
             setDmDisplayNameByRoom({});
             setDmAvatarUrlByRoom({});
@@ -273,15 +292,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         const loadRoomMembers = async () => {
             try {
                 const memberLists = await Promise.all(
-                    rooms.map((room) => fetchRoomMembers(room.slug).catch((): Member[] => []))
+                    roomMembershipSeed.map((room) => fetchRoomMembers(room.slug).catch((): Member[] => []))
                 );
 
                 const memberIdsByRoom: Record<string, string[]> = {};
                 const dmNames: Record<string, string> = {};
                 const dmAvatars: Record<string, string | null> = {};
 
-                for (let index = 0; index < rooms.length; index++) {
-                    const room = rooms[index];
+                for (let index = 0; index < roomMembershipSeed.length; index++) {
+                    const room = roomMembershipSeed[index];
                     const members = memberLists[index] || [];
                     memberIdsByRoom[room.slug] = members.map((member) => member.userId);
 
@@ -315,7 +334,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return () => {
             cancelled = true;
         };
-    }, [rooms, userId, setOnlineCountsByRoom]);
+    }, [roomMembershipSeed, userId, setOnlineCountsByRoom]);
 
     useEffect(() => {
         const counts: Record<string, number> = {};
@@ -505,7 +524,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             const room = await acceptDmRequest(requestId);
             addRoom(room);
             setActiveRoom(room.slug);
-            setIncomingRequests((prev) => prev.filter((r) => r.id !== requestId));
+            removeIncomingRequest(requestId);
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to accept request';
             setComposerError(msg);
@@ -515,7 +534,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const handleRejectRequest = async (requestId: string) => {
         try {
             await rejectDmRequest(requestId);
-            setIncomingRequests((prev) => prev.filter((r) => r.id !== requestId));
+            removeIncomingRequest(requestId);
         } catch (err: any) {
             const msg = err.response?.data?.message || 'Failed to reject request';
             setComposerError(msg);
@@ -975,7 +994,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 className="room-menu__item"
                                 onClick={() => {
                                     if (username) {
-                                        copyText(`@${username}`, 'Username');
+                                        copyText(username, 'Username');
                                     }
                                     setActionMenuOpen(false);
                                 }}

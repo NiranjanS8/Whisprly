@@ -22,6 +22,7 @@ public class ChatMessageResponse {
     private String senderUsername;
     private String senderFullName;
     private String senderAvatarUrl;
+    private String messageType;
     private String content;
     private AttachmentResponse attachment;
     private Instant createdAt;

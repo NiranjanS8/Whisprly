@@ -11,6 +11,7 @@ import Sidebar from '../features/rooms/Sidebar';
 import ChatPanel from '../features/chat/ChatPanel';
 import ProfilePage from '../features/profile/ProfilePage';
 import RoomSettingsPage from '../features/rooms/RoomSettingsPage';
+import ToastViewport from '../features/notifications/ToastViewport';
 import { fetchMyProfile } from '../features/profile/profileApi';
 import { resolveMediaUrl } from '../shared/utils';
 import './App.css';
@@ -266,6 +267,7 @@ function ChatLayout() {
 export default function App() {
     return (
         <BrowserRouter>
+            <ToastViewport />
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />

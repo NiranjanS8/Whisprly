@@ -35,6 +35,11 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_type", nullable = false, length = 20)
+    @Builder.Default
+    private MessageType messageType = MessageType.USER;
+
     @Column(name = "attachment_original_name", length = 255)
     private String attachmentOriginalName;
 

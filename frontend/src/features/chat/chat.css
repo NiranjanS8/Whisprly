@@ -365,6 +365,23 @@
     flex-direction: row;
 }
 
+.msg--system {
+    justify-content: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.msg__system-pill {
+    max-width: min(80%, 420px);
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #9aa8bb;
+    font-size: 12px;
+    text-align: center;
+}
+
 .msg--stacked {
     margin-top: -4px;
 }
