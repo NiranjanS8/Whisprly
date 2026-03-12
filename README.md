@@ -1,167 +1,203 @@
 # Whisprly
 
-Whisprly is a **real-time messaging platform** built with **Spring Boot
-and React**.\
-It supports direct messaging, group rooms, attachments, message
-lifecycle features, and live presence updates using WebSockets.
+Whisprly is a real-time chat application built with Spring Boot, PostgreSQL, WebSocket/STOMP, React, and TypeScript.
 
-The project focuses on **real-time communication architecture,
-conversation state management, and scalable messaging features similar
-to modern chat platforms.**
+It supports direct messages, group rooms, attachments, unread tracking, typing/presence, message search, self-destructing messages, and live room/DM updates. Internal data relationships use UUIDs, while user-facing identifiers use cleaner public IDs such as usernames, room slugs, and invite codes.
 
-------------------------------------------------------------------------
+## Highlights
 
-# UI Preview
+- Real-time messaging with WebSocket/STOMP
+- Group rooms and DM workflows
+- Username-based public actions for DM requests and profile lookup
+- Human-friendly room `slug` and `inviteCode`
+- Event-driven backend flow for message, DM request, and room update side effects
+- Attachments with validation and file storage
+- Unread counters, read markers, typing indicators, and presence
+- Global and room-scoped message search
+- Self-destructing messages
+- System join messages inside room timelines
+- Frontend toast notifications for new messages, DM requests, and room updates
 
-Add screenshots here.
-
-/screenshots chat.png room-settings.png pinned-message.png
-attachments.png
-
-Example:
-
-![Chat UI](screenshots/chat.png)
-
-------------------------------------------------------------------------
-
-# Key Features
-
--   Real-time messaging using **WebSocket/STOMP**
--   Direct messages and **group chat rooms**
--   **Message editing and soft deletion**
--   **Pinned messages**
--   **File and media attachments**
--   **Unread message counters**
--   **Presence and typing indicators**
--   **Global and room-level message search**
--   **Self-destructing messages**
--   **JWT-based authentication**
-
-------------------------------------------------------------------------
-
-# Tech Stack
+## Stack
 
 ### Backend
 
--   Java 17
--   Spring Boot 3
--   Spring Security (JWT)
--   Spring Data JPA / Hibernate
--   Spring WebSocket (STOMP)
--   PostgreSQL
--   Maven
+- Java 17
+- Spring Boot 3
+- Spring Security + JWT
+- Spring Data JPA / Hibernate
+- Spring WebSocket + STOMP
+- PostgreSQL
+- Maven
 
 ### Frontend
 
--   React
--   WebSocket client
--   REST API integration
+- React
+- TypeScript
+- Vite
+- Zustand
+- Axios
+- SockJS + STOMP
+- React Router
 
-------------------------------------------------------------------------
+## Public vs Internal IDs
 
-# System Architecture
+Whisprly keeps UUIDs as internal primary keys, but exposes cleaner public identifiers for user-facing flows:
 
-![Architecture](App_Architecture.png)
+- Users:
+  - internal: `UUID`
+  - public: `username`
+- Rooms:
+  - internal: `UUID`
+  - public: `slug`
+  - share/join: `inviteCode`
 
-------------------------------------------------------------------------
+This keeps database integrity intact while making URLs and APIs more readable.
 
-# Core Domain Concepts
-
-### User
-
-Authenticated account identity.
-
-### ChatRoom
-
-Conversation container supporting **DM or GROUP modes**.
-
-### ChatRoomMember
-
-Tracks per-user membership state including roles, pin state, and read
-markers.
-
-### Message
-
-Represents chat events including text or attachments with lifecycle
-states such as edited, deleted, pinned, or expired.
-
-### DmRequest
-
-Workflow used to initiate direct message conversations.
-
-------------------------------------------------------------------------
-
-# Real-Time Communication Flow
-
-1.  Client authenticates and connects to the WebSocket endpoint.
-2.  Client subscribes to room-specific and user-specific channels.
-3.  Messages, typing indicators, and presence updates are broadcast via
-    STOMP.
-4.  Backend persists message state and publishes derived updates such as
-    unread counters.
-
-------------------------------------------------------------------------
-
-# Message Lifecycle
-
--   Messages are stored with sender and room metadata.
--   Attachments are validated and stored with retrievable URLs.
--   Edited or deleted messages update lifecycle state without breaking
-    timeline continuity.
--   Expired messages are handled by scheduler-driven cleanup tasks.
--   Read acknowledgements update per-member `lastReadAt` markers.
-
-------------------------------------------------------------------------
-
-# Backend Architecture
-
-Layered architecture design:
-
-controller service repository model dto security storage
-
--   **Controller Layer** -- REST and WebSocket entry points
--   **Service Layer** -- business logic and rules
--   **Repository Layer** -- database access via JPA
--   **Security Layer** -- JWT authentication and request protection
--   **Storage Layer** -- attachment validation and file storage
-
-------------------------------------------------------------------------
-
-# API Capabilities
+## Main Features
 
 ### Authentication
 
--   Register
--   Login
--   Token validation
+- Register and login with JWT-based auth
+- Protected REST and WebSocket access
 
-### Rooms
+### Rooms and DMs
 
--   Create room
--   Join room
--   Manage members
--   Update room configuration
+- Create group rooms
+- Join rooms by invite code
+- Start DMs by username
+- Add/remove members
+- Transfer room ownership
+- Pin/unpin rooms per user
 
-### Messages
+### Messaging
 
--   Send message
--   Edit message
--   Delete message
--   Pin / unpin message
--   Fetch message history
--   Attachment retrieval
+- Send text and attachment messages
+- Edit, soft-delete, pin, and unpin messages
+- Self-destruct timers
+- System timeline messages such as `user joined the room`
+
+### Realtime UX
+
+- Live room message delivery
+- Typing indicators
+- Presence snapshot / updates
+- User-specific unread updates
+- User-specific room list updates
+- User-specific incoming DM request updates
+- Frontend toasts for important realtime events
 
 ### Search
 
--   Global message search
--   Room-specific search
+- Global message search across accessible rooms
+- Room-specific search with jump-to-message behavior
 
-### Presence
+## Architecture Summary
 
--   Online status
--   Typing indicators
+Whisprly uses a layered backend with event-driven side effects:
 
-### Unread Tracking
+- Controllers handle REST and WebSocket entry points
+- Services enforce business rules and persistence logic
+- Repositories handle database access
+- Domain events decouple side effects from core write flows
+- Listeners publish WebSocket updates and derived user queue updates
 
--   Per-room read markers
--   Unread message counters
+Examples:
+
+- `MessageService` publishes `MessageCreatedEvent`
+- `DmRequestService` publishes `DmRequestCreatedEvent`
+- `ChatRoomService` publishes `RoomUpsertedEvent`
+
+This keeps core service methods smaller and makes new realtime features easier to add.
+
+See [ARCHITECTURE.md](/C:/Users/Niranjan/Desktop/Chat_App/ARCHITECTURE.md) for the current system design.
+
+## Key Realtime Channels
+
+- Room messages: `/topic/room/{roomSlug}`
+- Typing: `/topic/room/{roomSlug}/typing`
+- Presence snapshot: `/topic/presence/snapshot`
+- Presence updates: `/user/queue/presence`
+- Unread updates: `/user/queue/rooms/unread`
+- Room list updates: `/user/queue/rooms/updates`
+- Incoming DM requests: `/user/queue/dm-requests/incoming`
+
+## Important API Patterns
+
+### User-facing
+
+- `GET /api/users/by-username/{username}/summary`
+- `POST /api/dm-requests/by-username/{username}`
+- `POST /api/rooms/dm/by-username/{username}`
+- `POST /api/rooms/join/{inviteCode}`
+- `GET /api/rooms/{roomSlug}/messages`
+
+### Internal behavior
+
+- Database relations still use UUIDs
+- Services resolve username / slug / invite code to UUID-backed entities before applying domain rules
+
+## Data Model
+
+Core entities:
+
+- `User`
+- `ChatRoom`
+- `ChatRoomMember`
+- `Message`
+- `DmRequest`
+
+Notable room/message fields:
+
+- `ChatRoom.slug`
+- `ChatRoom.inviteCode`
+- `ChatRoom.type`
+- `ChatRoomMember.lastReadAt`
+- `ChatRoomMember.pinnedAt`
+- `Message.messageType` (`USER`, `SYSTEM`)
+- `Message.expiresAt`
+- `Message.pinnedAt`
+
+## Frontend Notes
+
+The frontend uses:
+
+- Zustand for auth, room, chat, presence, DM request, and toast state
+- WebSocket subscriptions for realtime data fanout
+- Sidebar-based room/DM navigation
+- Toast notifications for new messages, room updates, and DM requests
+
+## Running the Project
+
+### Backend
+
+```bash
+mvn spring-boot:run
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Verification
+
+Frontend type-check:
+
+```bash
+cd frontend
+npx tsc -b
+```
+
+## Resume Value
+
+This project demonstrates:
+
+- real-time product architecture
+- WebSocket + REST coordination
+- event-driven backend design inside a Spring monolith
+- user-friendly public identifiers over UUID-based persistence
+- chat UX patterns such as unread counts, presence, typing, and notification toasts
