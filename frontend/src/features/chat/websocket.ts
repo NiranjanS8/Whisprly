@@ -19,6 +19,7 @@ class WebSocketService {
     private client: Client | null = null;
     private subscriptions: Map<string, StompSubscription> = new Map();
     private typingSubscriptions: Map<string, StompSubscription> = new Map();
+    private readReceiptSubscriptions: Map<string, StompSubscription> = new Map();
     private subscriptionRefCounts: Map<string, number> = new Map();
     private subscriptionQueue: Set<string> = new Set();
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -56,6 +57,7 @@ class WebSocketService {
                     if (count > 0) {
                         this.ensureRoomSubscription(roomId);
                         this.ensureTypingSubscription(roomId);
+                        this.ensureReadReceiptSubscription(roomId);
                     }
                 });
                 this.subscriptionQueue.clear();
@@ -198,6 +200,7 @@ class WebSocketService {
         if (nextRefCount > 1) {
             if (this.client?.active && this.client.connected) {
                 this.ensureTypingSubscription(roomId);
+                this.ensureReadReceiptSubscription(roomId);
             } else {
                 this.subscriptionQueue.add(roomId);
             }
@@ -211,6 +214,7 @@ class WebSocketService {
 
         this.ensureRoomSubscription(roomId);
         this.ensureTypingSubscription(roomId);
+        this.ensureReadReceiptSubscription(roomId);
     }
 
     private ensureRoomSubscription(roomId: string) {
@@ -267,13 +271,6 @@ class WebSocketService {
 
                 if (isOwnOptimistic) {
                     store.confirmMessage(resolvedRoomId, chatMsg.idempotencyKey, chatMsg);
-                    window.setTimeout(() => {
-                        const current = useChatStore.getState().messagesByRoom[resolvedRoomId] ?? [];
-                        const target = current.find((m) => m.idempotencyKey === chatMsg.idempotencyKey);
-                        if (target && target.status === 'sent') {
-                            useChatStore.getState().updateMessageStatus(resolvedRoomId, chatMsg.idempotencyKey, 'read');
-                        }
-                    }, 900);
                 } else {
                     store.appendMessage(resolvedRoomId, chatMsg);
                 }
@@ -315,6 +312,33 @@ class WebSocketService {
         this.typingSubscriptions.set(roomId, sub);
     }
 
+    private ensureReadReceiptSubscription(roomId: string) {
+        if (!this.client?.active || !this.client.connected) return;
+        if (this.readReceiptSubscriptions.has(roomId)) return;
+
+        const sub = this.client.subscribe(`/topic/room/${encodeURIComponent(roomId)}/read-receipts`, (message: IMessage) => {
+            try {
+                const body = JSON.parse(message.body);
+                const resolvedRoomId = String(body.roomSlug ?? roomId);
+                const readerUserId = String(body.userId ?? '');
+                const readAt = String(body.readAt ?? '');
+                if (!readerUserId || !readAt) return;
+
+                const authUserId = useAuthStore.getState().userId;
+                if (!authUserId || authUserId === readerUserId) return;
+
+                const sourceRoom = useRoomStore.getState().rooms.find((entry) => entry.slug === resolvedRoomId);
+                if (!sourceRoom || sourceRoom.type !== 'DM') return;
+
+                useChatStore.getState().markOwnMessagesReadUpTo(resolvedRoomId, authUserId, readAt);
+            } catch (e) {
+                console.error('Failed to parse read receipt:', e);
+            }
+        });
+
+        this.readReceiptSubscriptions.set(roomId, sub);
+    }
+
     unsubscribeFromRoom(roomId: string) {
         const currentRefCount = this.subscriptionRefCounts.get(roomId) ?? 0;
         if (currentRefCount <= 1) {
@@ -333,6 +357,11 @@ class WebSocketService {
         if (typingSub) {
             typingSub.unsubscribe();
             this.typingSubscriptions.delete(roomId);
+        }
+        const readReceiptSub = this.readReceiptSubscriptions.get(roomId);
+        if (readReceiptSub) {
+            readReceiptSub.unsubscribe();
+            this.readReceiptSubscriptions.delete(roomId);
         }
         useChatStore.getState().clearTypingForRoom(roomId);
         this.subscriptionQueue.delete(roomId);
@@ -380,6 +409,8 @@ class WebSocketService {
         this.subscriptions.clear();
         this.typingSubscriptions.forEach((sub) => sub.unsubscribe());
         this.typingSubscriptions.clear();
+        this.readReceiptSubscriptions.forEach((sub) => sub.unsubscribe());
+        this.readReceiptSubscriptions.clear();
         this.subscriptionRefCounts.clear();
         this.subscriptionQueue.clear();
         if (this.presenceTopicSub) {

@@ -4,6 +4,7 @@ import com.chatapp.dto.AddMemberRequest;
 import com.chatapp.dto.ChatRoomRequest;
 import com.chatapp.dto.ChatRoomResponse;
 import com.chatapp.dto.MemberResponse;
+import com.chatapp.dto.RoomReadReceiptResponse;
 import com.chatapp.dto.RoomUnreadUpdateResponse;
 import com.chatapp.dto.RoomSettingsRequest;
 import com.chatapp.dto.TransferOwnershipRequest;
@@ -121,6 +122,15 @@ public class ChatRoomController {
         ChatRoom room = roomPublicIdService.resolveRoom(roomKey);
         RoomUnreadUpdateResponse response = chatRoomService.markRoomAsRead(room.getId(), currentUser.getId());
         messagingTemplate.convertAndSendToUser(currentUser.getId().toString(), "/queue/rooms/unread", response);
+        messagingTemplate.convertAndSend(
+                "/topic/room/" + room.getSlug() + "/read-receipts",
+                RoomReadReceiptResponse.builder()
+                        .userId(currentUser.getId())
+                        .roomId(room.getId())
+                        .roomSlug(room.getSlug())
+                        .readAt(response.getLastReadAt())
+                        .build()
+        );
         return ResponseEntity.ok(response);
     }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChatMessage, MessageStatus } from './chatStore';
 import { formatTime, getInitials, normalizeApiPath, resolveMediaUrl } from '../../shared/utils';
 import httpClient from '../../shared/httpClient';
@@ -10,6 +11,10 @@ interface Props {
     showSender: boolean;
     groupPosition: 'single' | 'start' | 'middle' | 'end';
     highlighted?: boolean;
+    showStatus?: boolean;
+    menuOpen?: boolean;
+    onMenuToggle?: () => void;
+    onMenuClose?: () => void;
     avatarUrl?: string | null;
     onEdit?: (message: ChatMessage) => void;
     onDelete?: (message: ChatMessage) => void;
@@ -85,9 +90,10 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
     if (status === 'delivered') {
         return (
-            <span className="msg__status msg__status--sent" aria-label="Delivered">
+            <span className="msg__status msg__status--delivered" aria-label="Delivered">
                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M3 8.5 6.2 11.5 13 4.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M1.8 9 4.6 11.7 8.5 7.8" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M6.7 9 9.5 11.7 14.2 7" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
             </span>
         );
@@ -112,6 +118,10 @@ const MessageBubble = React.memo(function MessageBubble({
     showSender,
     groupPosition,
     highlighted = false,
+    showStatus = true,
+    menuOpen = false,
+    onMenuToggle,
+    onMenuClose,
     avatarUrl,
     onEdit,
     onDelete,
@@ -124,7 +134,6 @@ const MessageBubble = React.memo(function MessageBubble({
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [imageViewerOpen, setImageViewerOpen] = useState(false);
     const [previewLoading, setPreviewLoading] = useState(false);
-    const [menuOpen, setMenuOpen] = useState(false);
     const [nowTs, setNowTs] = useState(() => Date.now());
     const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
     const isImage = attachment?.category === 'IMAGE';
@@ -136,6 +145,37 @@ const MessageBubble = React.memo(function MessageBubble({
     const canPin = !!message.id && !isDeleted && message.status !== 'sending';
     const showActions = (canEdit || canPin) && !isDeleted;
     const hasExpiry = !!message.expiresAt && !isDeleted;
+    const actionsRef = React.useRef<HTMLDivElement | null>(null);
+    const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+    const menuRef = React.useRef<HTMLDivElement | null>(null);
+    const [menuPosition, setMenuPosition] = useState<{
+        top: number;
+        left: number;
+        openAbove: boolean;
+    } | null>(null);
+
+    const updateMenuPosition = React.useCallback(() => {
+        const trigger = triggerRef.current;
+        if (!trigger) return;
+        const menuHeight = menuRef.current?.offsetHeight ?? 168;
+        const menuWidth = menuRef.current?.offsetWidth ?? 160;
+        const rect = trigger.getBoundingClientRect();
+        const gap = 8;
+        const viewportPadding = 12;
+
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openAbove = spaceBelow < menuHeight + gap && rect.top > menuHeight + gap;
+
+        let top = openAbove
+            ? rect.top - menuHeight - gap
+            : rect.bottom + gap;
+        let left = rect.right - menuWidth;
+
+        top = Math.max(viewportPadding, Math.min(top, window.innerHeight - menuHeight - viewportPadding));
+        left = Math.max(viewportPadding, Math.min(left, window.innerWidth - menuWidth - viewportPadding));
+
+        setMenuPosition({ top, left, openAbove });
+    }, []);
 
     if (isSystem) {
         return (
@@ -210,6 +250,48 @@ const MessageBubble = React.memo(function MessageBubble({
     useEffect(() => {
         setAvatarLoadFailed(false);
     }, [resolvedAvatarUrl, message.senderId, message.id]);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            const isInTrigger = !!actionsRef.current?.contains(target);
+            const isInMenu = !!menuRef.current?.contains(target);
+            if (!isInTrigger && !isInMenu) {
+                onMenuClose?.();
+            }
+        };
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onMenuClose?.();
+            }
+        };
+
+        const handleViewportChange = () => {
+            updateMenuPosition();
+        };
+
+        updateMenuPosition();
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('scroll', handleViewportChange, true);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+            window.removeEventListener('resize', handleViewportChange);
+            window.removeEventListener('scroll', handleViewportChange, true);
+        };
+    }, [menuOpen, onMenuClose, updateMenuPosition]);
+
+    useEffect(() => {
+        if (!menuOpen) {
+            setMenuPosition(null);
+        }
+    }, [menuOpen]);
 
     const fetchAttachmentBlob = async () => {
         if (!attachment) return null;
@@ -315,17 +397,19 @@ const MessageBubble = React.memo(function MessageBubble({
                             {hasExpiry && message.expiresAt && <span className="msg__expiry">{formatExpiryRemaining(message.expiresAt, nowTs)}</span>}
                             {message.pinnedAt && !isDeleted && <span className="msg__pinned">Pinned</span>}
                             {message.editedAt && !isDeleted && <span className="msg__edited">Edited</span>}
-                            {isOwn && (
+                            {isOwn && showStatus && (
                                 <MessageStatusIndicator status={message.status} />
                             )}
                         </span>
                         {showActions && (
-                            <div className="msg__actions">
+                            <div className={`msg__actions ${menuOpen ? 'msg__actions--open' : ''}`} ref={actionsRef}>
                                 <button
                                     type="button"
                                     className="msg__actions-btn"
                                     aria-label="Message actions"
-                                    onClick={() => setMenuOpen((prev) => !prev)}
+                                    aria-expanded={menuOpen}
+                                    ref={triggerRef}
+                                    onClick={onMenuToggle}
                                 >
                                     <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
                                         <circle cx="12" cy="5" r="1.6" fill="currentColor" />
@@ -333,47 +417,53 @@ const MessageBubble = React.memo(function MessageBubble({
                                         <circle cx="12" cy="19" r="1.6" fill="currentColor" />
                                     </svg>
                                 </button>
-                                {menuOpen && (
-                                    <div className="msg__actions-menu">
-                                        {canPin && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setMenuOpen(false);
-                                                    onTogglePin?.(message);
-                                                }}
-                                            >
-                                                {message.pinnedAt ? 'Unpin' : 'Pin'}
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                onEdit?.(message);
-                                            }}
-                                            disabled={!canEdit}
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="msg__actions-delete"
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                onDelete?.(message);
-                                            }}
-                                            disabled={!canEdit}
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+
+            {menuOpen && createPortal(
+                <div
+                    ref={menuRef}
+                    className={`msg__actions-menu msg__actions-menu--portal ${menuPosition?.openAbove ? 'msg__actions-menu--above' : 'msg__actions-menu--below'}`}
+                    style={menuPosition ? { top: `${menuPosition.top}px`, left: `${menuPosition.left}px` } : undefined}
+                >
+                    {canPin && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onMenuClose?.();
+                                onTogglePin?.(message);
+                            }}
+                        >
+                            {message.pinnedAt ? 'Unpin' : 'Pin'}
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onMenuClose?.();
+                            onEdit?.(message);
+                        }}
+                        disabled={!canEdit}
+                    >
+                        Edit
+                    </button>
+                    <button
+                        type="button"
+                        className="msg__actions-delete"
+                        onClick={() => {
+                            onMenuClose?.();
+                            onDelete?.(message);
+                        }}
+                        disabled={!canEdit}
+                    >
+                        Delete
+                    </button>
+                </div>,
+                document.body
+            )}
 
             {isImage && previewUrl && imageViewerOpen && (
                 <div className="chat-image-viewer" onClick={() => setImageViewerOpen(false)} role="dialog" aria-modal="true" aria-label="Image preview">

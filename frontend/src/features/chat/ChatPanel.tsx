@@ -83,6 +83,7 @@ export default function ChatPanel() {
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
     const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
+    const [activeMenuMessageKey, setActiveMenuMessageKey] = useState<string | null>(null);
     const [roomSearchOpen, setRoomSearchOpen] = useState(false);
     const [roomSearchQuery, setRoomSearchQuery] = useState('');
     const [roomSearchResults, setRoomSearchResults] = useState<MessageSearchResult[]>([]);
@@ -231,6 +232,7 @@ export default function ChatPanel() {
         setRoomSearchResults([]);
         setRoomSearchLoading(false);
         setActiveSearchMatchIndex(0);
+        setActiveMenuMessageKey(null);
     }, [activeRoomId]);
 
     useEffect(() => {
@@ -357,6 +359,7 @@ export default function ChatPanel() {
 
     const handleStartEdit = (message: ChatMessage) => {
         if (!message.id || message.deletedAt) return;
+        setActiveMenuMessageKey(null);
         setEditingMessage(message);
     };
 
@@ -366,6 +369,7 @@ export default function ChatPanel() {
 
     const handleDeleteMessage = (message: ChatMessage) => {
         if (!activeRoomId || !message.id) return;
+        setActiveMenuMessageKey(null);
         deleteMessage(activeRoomId, message.id)
             .then((updated) => {
                 useChatStore.getState().upsertMessage(activeRoomId, updated);
@@ -378,6 +382,7 @@ export default function ChatPanel() {
 
     const handleTogglePinMessage = (message: ChatMessage) => {
         if (!activeRoomId || !message.id) return;
+        setActiveMenuMessageKey(null);
         const action = message.pinnedAt ? unpinMessage : pinMessage;
         action(activeRoomId, message.id)
             .then((updated) => {
@@ -666,6 +671,13 @@ export default function ChatPanel() {
                                     showSender={showAvatar}
                                     groupPosition={groupPosition}
                                     highlighted={msg.id === highlightedMessageId}
+                                    showStatus
+                                    menuOpen={activeMenuMessageKey === (msg.id || msg.idempotencyKey)}
+                                    onMenuToggle={() => {
+                                        const messageKey = msg.id || msg.idempotencyKey;
+                                        setActiveMenuMessageKey((prev) => (prev === messageKey ? null : messageKey));
+                                    }}
+                                    onMenuClose={() => setActiveMenuMessageKey(null)}
                                     avatarUrl={isDmRoom ? dmParticipant?.avatarUrl : undefined}
                                     onEdit={handleStartEdit}
                                     onDelete={handleDeleteMessage}

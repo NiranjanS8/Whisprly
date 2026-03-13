@@ -45,6 +45,7 @@ interface ChatState {
     confirmMessage: (roomId: string, idempotencyKey: string, serverMsg: ChatMessage) => void;
     failMessage: (roomId: string, idempotencyKey: string) => void;
     updateMessageStatus: (roomId: string, idempotencyKey: string, status: MessageStatus) => void;
+    markOwnMessagesReadUpTo: (roomId: string, ownUserId: string, readAt: string) => void;
     setHistoryMessages: (roomId: string, msgs: ChatMessage[]) => void;
     setConnectionStatus: (s: ConnectionStatus) => void;
     setReconnectAttempt: (n: number) => void;
@@ -143,6 +144,33 @@ export const useChatStore = create<ChatState>((set) => ({
                     [roomId]: existing.map((m) =>
                         m.idempotencyKey === idempotencyKey ? { ...m, status } : m
                     ),
+                },
+            };
+        }),
+
+    markOwnMessagesReadUpTo: (roomId, ownUserId, readAt) =>
+        set((state) => {
+            const existing = state.messagesByRoom[roomId] ?? [];
+            if (existing.length === 0) return state;
+
+            const readAtTs = new Date(readAt).getTime();
+            if (Number.isNaN(readAtTs)) return state;
+
+            let changed = false;
+            const updated = existing.map((m) => {
+                if (m.senderId !== ownUserId) return m;
+                if (m.status === 'read' || m.status === 'failed' || m.status === 'sending') return m;
+                const createdAtTs = new Date(m.createdAt).getTime();
+                if (Number.isNaN(createdAtTs) || createdAtTs > readAtTs) return m;
+                changed = true;
+                return { ...m, status: 'read' as const };
+            });
+
+            if (!changed) return state;
+            return {
+                messagesByRoom: {
+                    ...state.messagesByRoom,
+                    [roomId]: updated,
                 },
             };
         }),

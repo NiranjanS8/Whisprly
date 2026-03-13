@@ -1385,6 +1385,12 @@
     pointer-events: auto;
 }
 
+.msg__actions--open {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: auto !important;
+}
+
 .msg__actions-btn {
     width: 26px;
     height: 26px;
@@ -1660,4 +1666,60 @@
 .presence-dot--online {
     background-color: #67b892;
     box-shadow: 0 0 0 4px rgba(103, 184, 146, 0.16);
+}
+
+/* Message context menu layering + anchoring */
+.msg {
+    position: relative;
+    overflow: visible;
+    z-index: 1;
+}
+
+.msg:hover,
+.msg:focus-within {
+    z-index: 60;
+}
+
+.msg__body,
+.msg__bubble {
+    overflow: visible;
+}
+
+.msg__actions {
+    top: 8px;
+    right: 8px;
+    z-index: 70;
+}
+
+.msg__actions-menu {
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    min-width: 136px;
+    z-index: 120;
+}
+
+/* Virtuoso wrappers should not clip floating menus */
+.chat-messages .virtuoso-scroller,
+.chat-messages .virtuoso-item-list,
+.chat-messages .virtuoso-item,
+.chat-messages [data-virtuoso-scroller='true'],
+.chat-messages [data-virtuoso-item-list='true'],
+.chat-messages [data-virtuoso-item='true'] {
+    overflow-x: visible !important;
+}
+
+.msg__actions-menu--portal {
+    position: fixed;
+    z-index: 320;
+    min-width: 136px;
+    max-width: min(220px, calc(100vw - 24px));
+}
+
+.msg__actions-menu--portal.msg__actions-menu--below {
+    transform-origin: top right;
+}
+
+.msg__actions-menu--portal.msg__actions-menu--above {
+    transform-origin: bottom right;
 }
