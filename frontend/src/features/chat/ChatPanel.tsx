@@ -446,9 +446,15 @@ export default function ChatPanel() {
         return (
             <div className="chat-panel chat-panel--empty">
                 <div className="chat-empty-state">
-                    <div className="chat-empty-icon">...</div>
-                    <h3>Welcome to Whisprly</h3>
-                    <p>Select a room to start chatting</p>
+                    <div className="chat-empty-mark" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                    </div>
+                    <h3 className="chat-empty-brand">
+                        Whisprly<sup>™</sup>
+                    </h3>
+                    <p className="chat-empty-tagline">Whisper less. Connect more.</p>
                 </div>
             </div>
         );
