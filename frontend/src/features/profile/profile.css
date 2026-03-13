@@ -60,6 +60,7 @@
     color: #fff;
     font-size: 34px;
     font-weight: 700;
+    position: relative;
 }
 
 .avatar-preview img {
@@ -151,6 +152,116 @@
     gap: 10px;
 }
 
+.profile-view {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.avatar-section--readonly {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.avatar-preview--readonly {
+    width: 124px;
+    height: 124px;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.3);
+}
+
+.profile-status-dot {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #171c24;
+}
+
+.profile-status-dot.is-online {
+    background: #67b892;
+}
+
+.profile-status-dot.is-offline {
+    background: #7d8794;
+}
+
+.profile-display-name {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #f1f5fb;
+}
+
+.profile-handle {
+    margin: 0;
+    font-size: 14px;
+    color: #9cabbb;
+}
+
+.profile-presence {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.profile-presence.is-online {
+    color: #7ec8a5;
+}
+
+.profile-presence.is-offline {
+    color: #8f9cac;
+}
+
+.profile-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.profile-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #2b3442;
+    background: #171d25;
+}
+
+.profile-meta-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8d9aab;
+    font-weight: 700;
+}
+
+.profile-meta-value {
+    font-size: 14px;
+    color: #e5ebf5;
+    font-weight: 600;
+}
+
+.profile-footer--readonly {
+    margin-top: 0;
+    justify-content: flex-start;
+}
+
+.profile-btn-danger {
+    border-color: rgba(236, 102, 102, 0.5);
+    color: #f3b2b2;
+}
+
+.profile-btn-danger:hover {
+    background: rgba(236, 102, 102, 0.14);
+}
+
 @media (max-width: 768px) {
     .profile-grid {
         grid-template-columns: 1fr;
@@ -160,5 +271,9 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
+    }
+
+    .profile-meta-grid {
+        grid-template-columns: 1fr;
     }
 }

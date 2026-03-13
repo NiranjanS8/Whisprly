@@ -23,6 +23,15 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     @Query("SELECT m FROM ChatRoomMember m JOIN FETCH m.room r JOIN FETCH r.createdBy WHERE m.user.id = :userId")
     List<ChatRoomMember> findMembershipsByUserIdWithRoom(@Param("userId") UUID userId);
 
+    @Query("""
+            SELECT COUNT(DISTINCT m1.room.id)
+            FROM ChatRoomMember m1
+            JOIN ChatRoomMember m2 ON m1.room.id = m2.room.id
+            WHERE m1.user.id = :firstUserId
+              AND m2.user.id = :secondUserId
+            """)
+    long countRoomsInCommon(@Param("firstUserId") UUID firstUserId, @Param("secondUserId") UUID secondUserId);
+
     void deleteByRoomId(UUID roomId);
 
     void deleteByRoomIdAndUserId(UUID roomId, UUID userId);

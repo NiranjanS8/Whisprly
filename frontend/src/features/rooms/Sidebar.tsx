@@ -5,7 +5,7 @@ import { fetchRooms, createRoom, joinRoom, removeMember, deleteRoom, fetchRoomMe
 import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmRequest } from './dmRequestApi';
 import type { Room } from './roomApi';
 import { useDmRequestStore } from './dmRequestStore';
-import { fetchUserSummary, type UserSummary } from '../profile/profileApi';
+import { blockUser, fetchUserSummary, type UserSummary, unblockUser } from '../profile/profileApi';
 import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from '../chat/chatStore';
 import { fetchMessages } from '../chat/messageApi';
@@ -637,6 +637,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 return;
             }
             const willBlock = !blockedDmRoomIds[room.slug];
+            if (willBlock) {
+                await blockUser(summary.id);
+            } else {
+                await unblockUser(summary.id);
+            }
             setBlockedDmRoomIds((prev) => ({ ...prev, [room.slug]: willBlock }));
             const displayName = summary.fullName?.trim() || summary.username;
             setCopiedText(willBlock ? `${displayName} blocked` : `${displayName} unblocked`);

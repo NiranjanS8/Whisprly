@@ -98,3 +98,17 @@ ALTER TABLE messages
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) NOT NULL DEFAULT 'USER';
+
+CREATE TABLE IF NOT EXISTS user_blocks (
+    id UUID PRIMARY KEY,
+    blocker_id UUID NOT NULL,
+    blocked_id UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user_blocks_blocker FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_blocks_blocked FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT ck_user_blocks_not_self CHECK (blocker_id <> blocked_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_blocks_pair ON user_blocks (blocker_id, blocked_id);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks (blocker_id);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks (blocked_id);

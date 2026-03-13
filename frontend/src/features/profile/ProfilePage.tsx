@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../auth/authStore';
-import { fetchMyProfile, fetchUserSummary, fetchUserSummaryByUsername, updateMyProfile } from './profileApi';
+import { useRoomStore } from '../rooms/roomStore';
+import { startDmByUsername } from '../rooms/roomApi';
+import { blockUser, fetchMyProfile, fetchUserSummary, fetchUserSummaryByUsername, unblockUser, updateMyProfile } from './profileApi';
 import type { UserProfile } from './profileApi';
 import './profile.css';
 
@@ -12,6 +14,18 @@ interface FormState {
     fullName: string;
     bio: string;
     avatarUrl: string;
+}
+
+interface ReadonlyProfileState {
+    id: string;
+    username: string;
+    fullName: string | null;
+    avatarUrl: string | null;
+    online: boolean;
+    joinedAt: string;
+    roomsInCommon: number;
+    blockedByCurrentUser: boolean;
+    blocksCurrentUser: boolean;
 }
 
 function getInitial(nameOrUsername: string): string {
@@ -50,6 +64,8 @@ export default function ProfilePage() {
     const viewUsername = searchParams.get('username');
     const setUsername = useAuthStore((s) => s.setUsername);
     const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
+    const setActiveRoom = useRoomStore((s) => s.setActiveRoom);
+    const upsertRoom = useRoomStore((s) => s.upsertRoom);
     const myUserId = useAuthStore((s) => s.userId);
     const myUsername = useAuthStore((s) => s.username);
 
@@ -57,7 +73,8 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [readonlyProfile, setReadonlyProfile] = useState<{ id: string; username: string; fullName: string | null; avatarUrl: string | null; online: boolean } | null>(null);
+    const [readonlyProfile, setReadonlyProfile] = useState<ReadonlyProfileState | null>(null);
+    const [actionLoading, setActionLoading] = useState(false);
     const [form, setForm] = useState<FormState>({
         username: '',
         email: '',
@@ -87,6 +104,10 @@ export default function ProfilePage() {
                         fullName: summary.fullName ?? null,
                         avatarUrl: summary.avatarUrl,
                         online: summary.online,
+                        joinedAt: summary.joinedAt,
+                        roomsInCommon: summary.roomsInCommon,
+                        blockedByCurrentUser: summary.blockedByCurrentUser,
+                        blocksCurrentUser: summary.blocksCurrentUser,
                     });
                 })
                 .catch(() => {
@@ -128,6 +149,14 @@ export default function ProfilePage() {
     }, [viewUserId, viewUsername, myUserId, myUsername]);
 
     const displayName = useMemo(() => form.fullName.trim() || form.username.trim(), [form.fullName, form.username]);
+
+    const formatJoinedDate = (value: string): string => {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'Unknown';
+        return new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    };
+
+    const formatLastActive = (online: boolean): string => (online ? 'Online now' : 'Offline');
 
     const handleInput = (key: keyof FormState) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -193,6 +222,56 @@ export default function ProfilePage() {
         }
     };
 
+    const handleSendMessage = async () => {
+        if (!readonlyProfile || actionLoading) return;
+        if (readonlyProfile.blockedByCurrentUser) {
+            setError('Unblock this user to send a message');
+            return;
+        }
+        if (readonlyProfile.blocksCurrentUser) {
+            setError('You cannot message this user right now');
+            return;
+        }
+
+        setActionLoading(true);
+        setError('');
+        try {
+            const room = await startDmByUsername(readonlyProfile.username);
+            upsertRoom(room);
+            setActiveRoom(room.slug);
+            navigate('/chat');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to start conversation';
+            setError(msg);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleToggleBlock = async () => {
+        if (!readonlyProfile || actionLoading) return;
+        setActionLoading(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            if (readonlyProfile.blockedByCurrentUser) {
+                await unblockUser(readonlyProfile.id);
+                setReadonlyProfile((prev) => prev ? { ...prev, blockedByCurrentUser: false } : prev);
+                setSuccess(`@${readonlyProfile.username} unblocked`);
+            } else {
+                await blockUser(readonlyProfile.id);
+                setReadonlyProfile((prev) => prev ? { ...prev, blockedByCurrentUser: true } : prev);
+                setSuccess(`@${readonlyProfile.username} blocked`);
+            }
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to update block status';
+            setError(msg);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="profile-page">
@@ -209,22 +288,68 @@ export default function ProfilePage() {
                         <button type="button" className="profile-back" onClick={() => navigate('/chat')}>
                             Back
                         </button>
-                        <h2>Profile</h2>
+                        <h2>User Profile</h2>
                     </div>
-                    <div className="avatar-section">
-                        <div className="avatar-preview">
-                            {readonlyProfile.avatarUrl ? (
-                                <img src={readonlyProfile.avatarUrl} alt="Profile avatar" />
-                            ) : (
-                                <span>{getInitial(readonlyProfile.fullName || readonlyProfile.username)}</span>
-                            )}
+
+                    <div className="profile-view">
+                        <div className="avatar-section avatar-section--readonly">
+                            <div className="avatar-preview avatar-preview--readonly">
+                                {readonlyProfile.avatarUrl ? (
+                                    <img src={readonlyProfile.avatarUrl} alt="Profile avatar" />
+                                ) : (
+                                    <span>{getInitial(readonlyProfile.fullName || readonlyProfile.username)}</span>
+                                )}
+                                <span className={`profile-status-dot ${readonlyProfile.online ? 'is-online' : 'is-offline'}`} aria-hidden="true" />
+                            </div>
+                            <div className="avatar-actions">
+                                <p className="profile-display-name">{readonlyProfile.fullName?.trim() || readonlyProfile.username}</p>
+                                <p className="profile-handle">@{readonlyProfile.username}</p>
+                                <p className={`profile-presence ${readonlyProfile.online ? 'is-online' : 'is-offline'}`}>
+                                    {readonlyProfile.online ? 'Online' : 'Offline'}
+                                </p>
+                            </div>
                         </div>
-                        <div className="avatar-actions">
-                            <p className="avatar-note">{readonlyProfile.fullName?.trim() || readonlyProfile.username}</p>
-                            <p className="avatar-note">@{readonlyProfile.username}</p>
-                            <p className="avatar-note">{readonlyProfile.online ? 'Online' : 'Offline'}</p>
+
+                        <div className="profile-meta-grid">
+                            <div className="profile-meta-item">
+                                <span className="profile-meta-label">Joined</span>
+                                <span className="profile-meta-value">{formatJoinedDate(readonlyProfile.joinedAt)}</span>
+                            </div>
+                            <div className="profile-meta-item">
+                                <span className="profile-meta-label">Last active</span>
+                                <span className="profile-meta-value">{formatLastActive(readonlyProfile.online)}</span>
+                            </div>
+                            <div className="profile-meta-item">
+                                <span className="profile-meta-label">Rooms in common</span>
+                                <span className="profile-meta-value">{readonlyProfile.roomsInCommon}</span>
+                            </div>
+                        </div>
+
+                        {readonlyProfile.blocksCurrentUser && (
+                            <div className="profile-error">This user has blocked you. Messaging is unavailable.</div>
+                        )}
+
+                        <div className="profile-footer profile-footer--readonly">
+                            <button
+                                type="button"
+                                className="primary-btn"
+                                onClick={handleSendMessage}
+                                disabled={actionLoading || readonlyProfile.blockedByCurrentUser || readonlyProfile.blocksCurrentUser}
+                            >
+                                {actionLoading ? 'Working...' : 'Send Message'}
+                            </button>
+                            <button
+                                type="button"
+                                className="secondary-btn profile-btn-danger"
+                                onClick={handleToggleBlock}
+                                disabled={actionLoading}
+                            >
+                                {readonlyProfile.blockedByCurrentUser ? 'Unblock User' : 'Block User'}
+                            </button>
                         </div>
                     </div>
+                    {error && <div className="profile-error">{error}</div>}
+                    {success && <div className="profile-success">{success}</div>}
                 </div>
             </div>
         );

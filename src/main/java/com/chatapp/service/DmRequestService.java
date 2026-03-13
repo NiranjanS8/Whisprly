@@ -33,6 +33,7 @@ public class DmRequestService {
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomService chatRoomService;
+    private final UserBlockService userBlockService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -45,6 +46,10 @@ public class DmRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", requesterId));
         User target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        if (userBlockService.existsBlockBetween(requesterId, targetUserId)) {
+            throw new AccessDeniedException("Cannot send DM request due to user block settings");
+        }
 
         if (chatRoomRepository.findDmRoomBetweenUsers(RoomType.DM, requesterId, targetUserId).isPresent()) {
             throw new DuplicateResourceException("Direct message room already exists");

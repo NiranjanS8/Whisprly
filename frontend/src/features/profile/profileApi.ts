@@ -15,6 +15,10 @@ export interface UserSummary {
     fullName: string | null;
     avatarUrl: string | null;
     online: boolean;
+    joinedAt: string;
+    roomsInCommon: number;
+    blockedByCurrentUser: boolean;
+    blocksCurrentUser: boolean;
 }
 
 export interface UpdateUserProfileRequest {
@@ -43,4 +47,12 @@ export async function fetchUserSummary(userId: string): Promise<UserSummary> {
 export async function fetchUserSummaryByUsername(username: string): Promise<UserSummary> {
     const res = await httpClient.get<UserSummary>(`/users/by-username/${encodeURIComponent(username)}/summary`);
     return res.data;
+}
+
+export async function blockUser(userId: string): Promise<void> {
+    await httpClient.post(`/users/${encodeURIComponent(userId)}/block`);
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+    await httpClient.delete(`/users/${encodeURIComponent(userId)}/block`);
 }

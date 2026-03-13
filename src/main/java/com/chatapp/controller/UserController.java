@@ -6,8 +6,10 @@ import com.chatapp.dto.UserSummaryResponse;
 import com.chatapp.exception.DuplicateResourceException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.User;
+import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.service.PresenceService;
+import com.chatapp.service.UserBlockService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,8 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final PresenceService presenceService;
+    private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final UserBlockService userBlockService;
 
     @GetMapping("/search")
     public ResponseEntity<List<Map<String, Object>>> searchUsers(
@@ -58,7 +62,7 @@ public class UserController {
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        return ResponseEntity.ok(toSummaryResponse(targetUser));
+        return ResponseEntity.ok(toSummaryResponse(targetUser, currentUser.getId()));
     }
 
     @GetMapping("/by-username/{username}/summary")
@@ -68,7 +72,23 @@ public class UserController {
         User targetUser = userRepository.findByUsernameIgnoreCase(username.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
 
-        return ResponseEntity.ok(toSummaryResponse(targetUser));
+        return ResponseEntity.ok(toSummaryResponse(targetUser, currentUser.getId()));
+    }
+
+    @PostMapping("/{userId}/block")
+    public ResponseEntity<Map<String, Object>> blockUser(
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal User currentUser) {
+        userBlockService.blockUser(currentUser.getId(), userId);
+        return ResponseEntity.ok(Map.of("blocked", true));
+    }
+
+    @DeleteMapping("/{userId}/block")
+    public ResponseEntity<Map<String, Object>> unblockUser(
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal User currentUser) {
+        userBlockService.unblockUser(currentUser.getId(), userId);
+        return ResponseEntity.ok(Map.of("blocked", false));
     }
 
     @PutMapping("/me")
@@ -121,13 +141,20 @@ public class UserController {
                 .build();
     }
 
-    private UserSummaryResponse toSummaryResponse(User user) {
+    private UserSummaryResponse toSummaryResponse(User user, UUID currentUserId) {
+        long roomsInCommon = user.getId().equals(currentUserId)
+                ? 0
+                : chatRoomMemberRepository.countRoomsInCommon(currentUserId, user.getId());
         return UserSummaryResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .fullName(user.getFullName())
                 .avatarUrl(user.getAvatarUrl())
                 .online(presenceService.isOnline(user.getId()))
+                .joinedAt(user.getCreatedAt())
+                .roomsInCommon(roomsInCommon)
+                .blockedByCurrentUser(userBlockService.isBlockedByCurrentUser(currentUserId, user.getId()))
+                .blocksCurrentUser(userBlockService.hasBlockedCurrentUser(currentUserId, user.getId()))
                 .build();
     }
 }

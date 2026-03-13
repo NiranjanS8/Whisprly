@@ -22,6 +22,9 @@ desktop.ini
 *.ear
 hs_err_pid*
 .recommenders/
+.mvn/wrapper/maven-wrapper.jar
+.m2/
+**/.m2/
 
 # Logs and temp
 *.log
@@ -30,6 +33,10 @@ logs/
 *.temp
 startup-log.txt
 backend_error.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Node / Frontend
 frontend/node_modules/
@@ -41,11 +48,13 @@ frontend/*.tsbuildinfo
 frontend/vite_build_error.txt
 frontend/build_output.txt
 frontend/tsc_errors*.txt
+frontend/.eslintcache
 
 # Environment and secrets
 .env
 .env.*
 !.env.example
+*.local
 *.pem
 *.key
 *.crt

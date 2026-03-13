@@ -112,3 +112,8 @@ export async function markRoomRead(roomSlug: string): Promise<RoomUnreadUpdate> 
     const res = await httpClient.post<RoomUnreadUpdate>(`/rooms/${encodeURIComponent(roomSlug)}/read`);
     return res.data;
 }
+
+export async function startDmByUsername(username: string): Promise<Room> {
+    const res = await httpClient.post<Room>(`/rooms/dm/by-username/${encodeURIComponent(username)}`);
+    return res.data;
+}

@@ -42,6 +42,7 @@ public class ChatRoomService {
     private final MessageRepository messageRepository;
     private final RoomPublicIdService roomPublicIdService;
     private final MessageService messageService;
+    private final UserBlockService userBlockService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -315,6 +316,10 @@ public class ChatRoomService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        if (userBlockService.existsBlockBetween(userId, targetUserId)) {
+            throw new AccessDeniedException("Cannot create DM due to user block settings");
+        }
 
         // Check if DM room already exists
         Optional<ChatRoom> existingDm = chatRoomRepository.findDmRoomBetweenUsers(
