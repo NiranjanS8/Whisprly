@@ -1,0 +1,91 @@
+.confirm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 170;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(6, 10, 16, 0.62);
+    backdrop-filter: blur(6px);
+}
+
+.confirm-modal {
+    width: min(420px, calc(100vw - 28px));
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(20, 27, 36, 0.98);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    padding: 20px;
+}
+
+.confirm-modal__title {
+    margin: 0;
+    color: #edf3fb;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.confirm-modal__message {
+    margin: 10px 0 0;
+    color: #9aabbe;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.confirm-modal__actions {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-modal__btn {
+    min-width: 108px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.confirm-modal__btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.confirm-modal__btn--neutral {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #d3deeb;
+}
+
+.confirm-modal__btn--neutral:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.confirm-modal__btn--accent {
+    background: linear-gradient(135deg, #6a82ff, #49c8bb);
+    color: #edf6ff;
+    box-shadow: 0 10px 22px rgba(82, 110, 227, 0.24);
+}
+
+.confirm-modal__btn--accent:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.confirm-modal__btn--destructive {
+    background: rgba(226, 86, 86, 0.18);
+    border-color: rgba(226, 86, 86, 0.45);
+    color: #ffb3b3;
+}
+
+.confirm-modal__btn--destructive:hover:not(:disabled) {
+    background: rgba(226, 86, 86, 0.24);
+    transform: translateY(-1px);
+}

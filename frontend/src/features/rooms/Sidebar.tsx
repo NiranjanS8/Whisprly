@@ -12,6 +12,7 @@ import { fetchMessages } from '../chat/messageApi';
 import { wsService } from '../chat/websocket';
 import { usePresenceStore } from '../presence/presenceStore';
 import { getInitials, resolveMediaUrl } from '../../shared/utils';
+import ConfirmModal from '../../shared/ConfirmModal';
 import './sidebar.css';
 
 interface SidebarProps {
@@ -186,6 +187,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [dmAvatarUrlByRoom, setDmAvatarUrlByRoom] = useState<Record<string, string | null>>({});
     const [roomMemberIdsByRoom, setRoomMemberIdsByRoom] = useState<Record<string, string[]>>({});
     const [avatarLoadErrorByRoom, setAvatarLoadErrorByRoom] = useState<Record<string, string>>({});
+    const [leaveRoomConfirm, setLeaveRoomConfirm] = useState<{ roomId: string; roomName: string } | null>(null);
+    const [leavingRoom, setLeavingRoom] = useState(false);
     const incomingRequests = useDmRequestStore((s) => s.incomingRequests);
     const setIncomingRequests = useDmRequestStore((s) => s.setIncomingRequests);
     const removeIncomingRequest = useDmRequestStore((s) => s.removeIncomingRequest);
@@ -647,7 +650,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const handleLeaveRoom = async (roomId: string) => {
-        if (!userId) return;
+        const room = rooms.find((entry) => entry.slug === roomId);
+        const roomName = room?.name?.trim() || 'this room';
+        setLeaveRoomConfirm({ roomId, roomName });
+        setRoomMenuOpenId(null);
+    };
+
+    const confirmLeaveRoom = async () => {
+        if (!leaveRoomConfirm || !userId) return;
+        const roomId = leaveRoomConfirm.roomId;
+        setLeavingRoom(true);
         try {
             await removeMember(roomId, userId);
             const nextRooms = rooms.filter((room) => room.slug !== roomId);
@@ -660,8 +672,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             const msg = err.response?.data?.message || 'Failed to leave room';
             setCopiedText(msg);
         } finally {
+            setLeavingRoom(false);
+            setLeaveRoomConfirm(null);
             setTimeout(() => setCopiedText(''), 1800);
-            setRoomMenuOpenId(null);
         }
     };
 
@@ -1027,6 +1040,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {copiedText && <div className="floating-feedback">{copiedText}</div>}
+            <ConfirmModal
+                open={!!leaveRoomConfirm}
+                title="Leave room"
+                message={`Are you sure you want to leave "${leaveRoomConfirm?.roomName ?? ''}"? You will stop receiving messages from this room.`}
+                confirmLabel="Leave Room"
+                destructive
+                isLoading={leavingRoom}
+                onCancel={() => setLeaveRoomConfirm(null)}
+                onConfirm={confirmLeaveRoom}
+            />
         </aside>
     );
 }

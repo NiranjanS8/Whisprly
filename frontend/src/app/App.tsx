@@ -14,6 +14,7 @@ import RoomSettingsPage from '../features/rooms/RoomSettingsPage';
 import ToastViewport from '../features/notifications/ToastViewport';
 import { fetchMyProfile } from '../features/profile/profileApi';
 import { resolveMediaUrl } from '../shared/utils';
+import ConfirmModal from '../shared/ConfirmModal';
 import './App.css';
 
 function formatSearchTime(dateString: string): string {
@@ -44,6 +45,7 @@ function ChatLayout() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<MessageSearchResult[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
+    const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
     const headerMenuRef = useRef<HTMLDivElement | null>(null);
     const headerSearchRef = useRef<HTMLDivElement | null>(null);
     const resolvedAvatarUrl = resolveMediaUrl(avatarUrl);
@@ -129,7 +131,7 @@ function ChatLayout() {
     const handleMenuAction = (action: 'help' | 'settings' | 'profile' | 'logout') => {
         setHeaderMenuOpen(false);
         if (action === 'logout') {
-            handleLogout();
+            setLogoutConfirmOpen(true);
             return;
         }
         if (action === 'profile') {
@@ -260,6 +262,18 @@ function ChatLayout() {
                     <Outlet />
                 </main>
             </div>
+            <ConfirmModal
+                open={logoutConfirmOpen}
+                title="Log out"
+                message="Are you sure you want to log out?"
+                confirmLabel="Log Out"
+                destructive
+                onCancel={() => setLogoutConfirmOpen(false)}
+                onConfirm={() => {
+                    setLogoutConfirmOpen(false);
+                    handleLogout();
+                }}
+            />
         </div>
     );
 }
