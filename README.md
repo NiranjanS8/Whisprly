@@ -76,8 +76,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system breakdown.
 
 ## Running with Redis
 
-Redis is optional but recommended for stronger backend signaling and multi-instance readiness.
-
 Example `.env` values:
 
 ```env
