@@ -35,7 +35,7 @@ Recent backend upgrades include Redis-backed distributed presence, Redis-backed 
 - UUIDs remain internal IDs; public identifiers are exposed for UX
 - Targeted backend tests cover auth refresh rotation and presence behavior
 
-See [ARCHITECTURE.md](/C:/Users/Niranjan/Desktop/Chat_App/ARCHITECTURE.md) for the full system breakdown.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system breakdown.
 
 ## Public Identifier Model
 
