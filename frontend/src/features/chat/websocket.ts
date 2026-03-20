@@ -392,12 +392,6 @@ class WebSocketService {
             destination: `/app/typing/${encodeURIComponent(roomId)}`,
             body: payload,
         });
-
-        // Fallback path: broker-level topic publish in case app mapping fails.
-        this.client.publish({
-            destination: `/topic/room/${encodeURIComponent(roomId)}/typing`,
-            body: payload,
-        });
     }
 
     disconnect() {

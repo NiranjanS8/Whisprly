@@ -365,7 +365,7 @@ public class MessageService {
     }
 
     private String buildAttachmentUrl(String roomSlug, UUID messageId) {
-        return "/rooms/" + roomSlug + "/messages/" + messageId + "/attachment";
+        return "/api/rooms/" + roomSlug + "/messages/" + messageId + "/attachment";
     }
 
     private Instant resolveExpiration(ChatRoom room) {
