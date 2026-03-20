@@ -21,19 +21,9 @@ Recent backend upgrades include Redis-backed distributed presence, Redis-backed 
 - Refresh-token rotation with revocation support
 - Frontend toasts for message, room-update, and DM-request events
 
-## Architecture (Current)
+## Architecture
 
-- Layered backend: `controller -> service -> repository`
-- In-process domain events for side effects:
-  - `MessageCreatedEvent`
-  - `DmRequestCreatedEvent`
-  - `RoomUpsertedEvent`
-- Redis-backed state where it adds value:
-  - presence/session tracking
-  - refresh-token storage + revocation
-- Transactional listeners publish realtime updates to user/room channels
-- UUIDs remain internal IDs; public identifiers are exposed for UX
-- Targeted backend tests cover auth refresh rotation and presence behavior
+![ARCHITECTURE](Whisprly_Architecture.png)
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system breakdown.
 
