@@ -1,5 +1,6 @@
 package com.chatapp.security;
 
+import com.chatapp.service.PresenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
@@ -20,6 +21,12 @@ import java.util.UUID;
 @Component
 @Slf4j
 public class WebSocketChannelInterceptor implements ChannelInterceptor {
+
+    private final PresenceService presenceService;
+
+    public WebSocketChannelInterceptor(PresenceService presenceService) {
+        this.presenceService = presenceService;
+    }
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
@@ -58,6 +65,10 @@ public class WebSocketChannelInterceptor implements ChannelInterceptor {
                     log.warn("STOMP {} rejected: unauthenticated", command);
                     throw new org.springframework.messaging.MessageDeliveryException("Unauthorized");
                 }
+            }
+
+            if (accessor.getSessionId() != null) {
+                presenceService.refreshSession(accessor.getSessionId());
             }
         }
 

@@ -8,16 +8,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class PresenceService {
 
-    private final Map<String, UUID> sessionToUser = new ConcurrentHashMap<>();
-    private final Map<UUID, Integer> onlineCounts = new ConcurrentHashMap<>();
+    private final PresenceStore presenceStore;
+
+    public PresenceService(PresenceStore presenceStore) {
+        this.presenceStore = presenceStore;
+    }
 
     @EventListener
     @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -32,11 +33,7 @@ public class PresenceService {
             return;
         }
 
-        UUID previous = sessionToUser.put(sessionId, userId);
-        if (previous != null && !previous.equals(userId)) {
-            onlineCounts.computeIfPresent(previous, (key, value) -> value > 1 ? value - 1 : null);
-        }
-        onlineCounts.merge(userId, 1, Integer::sum);
+        presenceStore.registerSession(sessionId, userId);
     }
 
     @EventListener
@@ -47,21 +44,18 @@ public class PresenceService {
             return;
         }
 
-        UUID userId = sessionToUser.remove(sessionId);
-        if (userId == null) {
-            return;
-        }
-        onlineCounts.computeIfPresent(userId, (key, value) -> value > 1 ? value - 1 : null);
+        presenceStore.unregisterSession(sessionId);
+    }
+
+    public void refreshSession(String sessionId) {
+        presenceStore.refreshSession(sessionId);
     }
 
     public boolean isOnline(UUID userId) {
-        if (userId == null) {
-            return false;
-        }
-        return onlineCounts.containsKey(userId);
+        return presenceStore.isOnline(userId);
     }
 
     public Set<UUID> getOnlineUserIds() {
-        return Set.copyOf(onlineCounts.keySet());
+        return presenceStore.getOnlineUserIds();
     }
 }

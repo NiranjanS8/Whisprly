@@ -5,6 +5,11 @@ spring:
   sql:
     init:
       mode: always
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -45,6 +50,10 @@ app:
     secret: f8a3b7c1d9e2f0a4b6c8d1e3f5a7b9c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9f1
     access-token-expiration-ms: 86400000    # 24 hours (dev-friendly)
     refresh-token-expiration-ms: 604800000  # 7 days
+  presence:
+    store: ${APP_PRESENCE_STORE:memory}
+    redis-key-prefix: ${APP_PRESENCE_REDIS_KEY_PREFIX:chatapp:presence}
+    session-ttl-seconds: ${APP_PRESENCE_SESSION_TTL_SECONDS:1800}
 
 storage:
   location: ${STORAGE_LOCATION:uploads}
