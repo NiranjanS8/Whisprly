@@ -6,6 +6,7 @@ Whisprly is a single-backend real-time chat system with:
 
 - Spring Boot backend
 - PostgreSQL as the source of truth
+- Redis for distributed presence and refresh-token state when enabled
 - WebSocket/STOMP for realtime delivery
 - React frontend using REST for fetch/update flows and WebSocket for live updates
 
@@ -22,6 +23,7 @@ flowchart LR
     SVC --> EVT[Domain Events]
     EVT --> LST[Event Listeners]
     SVC --> DB[(PostgreSQL)]
+    SVC --> REDIS[(Redis)]
     SVC --> FS[(Attachment Storage)]
     LST --> WS
 ```
@@ -35,6 +37,8 @@ flowchart TB
     REPO --> DB[(PostgreSQL)]
     SVC --> STORAGE[Storage Services]
     STORAGE --> FILES[(uploads/)]
+    SVC --> CACHE[Redis-backed Stores]
+    CACHE --> REDIS[(Redis)]
     SVC --> EVENTS[Application Events]
     EVENTS --> LISTENERS[Transactional Event Listeners]
     LISTENERS --> WS[WebSocket Messaging]
@@ -67,6 +71,7 @@ Responsibilities:
 - enforce authorization and membership rules
 - manage room, DM, and message lifecycle
 - compute unread state
+- manage presence and refresh-token state through pluggable stores
 - resolve public IDs to internal entities
 - persist domain state
 - publish domain events after core writes
@@ -77,6 +82,25 @@ Important services:
 - `MessageService`
 - `DmRequestService`
 - `RoomPublicIdService`
+- `PresenceService`
+- `AuthService`
+
+### Redis-backed Stores
+
+Whisprly now uses small focused store abstractions instead of hard-wiring all runtime state to process memory.
+
+- `PresenceStore`
+  - `InMemoryPresenceStore`
+  - `RedisPresenceStore`
+- `RefreshTokenStore`
+  - `InMemoryRefreshTokenStore`
+  - `RedisRefreshTokenStore`
+
+Why this matters:
+
+- presence can survive beyond a single JVM instance when Redis is enabled
+- refresh-token revocation and rotation are no longer "stateless in name only"
+- local development still works without Redis because memory-backed stores remain available
 
 ### Repositories
 
@@ -238,6 +262,19 @@ sequenceDiagram
     Listener->>WS: publish /user/queue/rooms/unread
 ```
 
+### Presence Model
+
+Presence is tracked through a `PresenceStore` abstraction.
+
+- in `memory` mode:
+  - websocket session IDs and user online counts are stored in local concurrent maps
+- in `redis` mode:
+  - websocket sessions are mapped to users in Redis
+  - per-user session sets determine online/offline state
+  - session TTLs are refreshed on websocket activity
+
+This lets presence scale beyond a single application instance without changing controller/service behavior.
+
 ## 8. Realtime Channels
 
 ### Room-scoped
@@ -297,7 +334,16 @@ sequenceDiagram
 3. Backend returns unread count `0`.
 4. User-specific unread queue stays in sync with later events.
 
-### F. Message Search and Jump
+### F. Refresh Token Rotation
+
+1. Client receives an access token + refresh token on login/register.
+2. Refresh tokens include a unique `jti`.
+3. The backend stores that refresh token identity in a `RefreshTokenStore`.
+4. On `/api/auth/refresh`, the backend validates the token, checks store membership, revokes the old `jti`, and issues a fresh access/refresh pair.
+5. On `/api/auth/logout`, the backend revokes the current refresh token.
+6. Frontend retries a failed request once after automatic refresh.
+
+### G. Message Search and Jump
 
 1. Client searches globally or inside a room.
 2. Backend runs scoped search query.
@@ -352,7 +398,9 @@ State is handled with Zustand stores:
 
 - JWT secures REST endpoints
 - authenticated identity is used for WebSocket sessions
+- refresh tokens are rotated and can be revoked
 - room membership is checked before message/history access
+- typing events are accepted only through validated app destinations
 - role rules protect room management actions
 - attachment validation runs before storage
 
@@ -363,12 +411,23 @@ Attachments are:
 - validated by category / content type
 - stored through the storage service
 - referenced from messages through attachment metadata
-- retrieved through authenticated message attachment endpoints
+- retrieved through authenticated `/api/rooms/.../attachment` endpoints
 
-## 14. Current Tradeoffs
+## 14. Testing
+
+Current backend tests cover:
+
+- auth refresh-token issuance, rotation, and revoked-token rejection
+- in-memory presence session accounting
+- Redis presence-store behavior using mocked Redis operations
+- `PresenceService` websocket event handling
+
+## 15. Current Tradeoffs
 
 - PostgreSQL is the single source of truth
 - domain events are in-process Spring events, not an external broker
-- realtime scaling across multiple backend instances would still need distributed coordination if the project grows
+- presence and refresh-token state can be distributed through Redis, but STOMP fanout still uses the in-process Spring broker
+- full multi-instance room-message fanout would still need a broker relay or external event bus if the project grows further
 
-That tradeoff is intentional for the current project size: it keeps the architecture clean without adding infrastructure complexity too early.
+That tradeoff is intentional for the current project size: it adds targeted distributed state where it matters most without forcing the full system onto broker-heavy infrastructure too early.
+
