@@ -47,9 +47,9 @@ app:
       - http://localhost:*
       - http://127.0.0.1:*
   jwt:
-    secret: f8a3b7c1d9e2f0a4b6c8d1e3f5a7b9c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9f1
-    access-token-expiration-ms: 86400000    # 24 hours (dev-friendly)
-    refresh-token-expiration-ms: 604800000  # 7 days
+    secret: ${APP_JWT_SECRET}
+    access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:86400000}
+    refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
   auth:
     refresh-token:
       store: ${APP_AUTH_REFRESH_TOKEN_STORE:memory}

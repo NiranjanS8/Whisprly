@@ -26,9 +26,22 @@ public class JwtService {
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-expiration-ms}") long accessTokenExpirationMs,
             @Value("${app.jwt.refresh-token-expiration-ms}") long refreshTokenExpirationMs) {
+        validateSecret(secret);
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpirationMs = accessTokenExpirationMs;
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+    }
+
+    private void validateSecret(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("APP_JWT_SECRET must be set");
+        }
+        if (secret.contains("replace_with_")) {
+            throw new IllegalStateException("APP_JWT_SECRET is still using a placeholder value");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
+        }
     }
 
     public String generateAccessToken(UUID userId, String username) {
