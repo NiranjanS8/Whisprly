@@ -12,6 +12,7 @@ import ChatPanel from '../features/chat/ChatPanel';
 import ProfilePage from '../features/profile/ProfilePage';
 import RoomSettingsPage from '../features/rooms/RoomSettingsPage';
 import ToastViewport from '../features/notifications/ToastViewport';
+import { logoutSession } from '../features/auth/authApi';
 import { fetchMyProfile } from '../features/profile/profileApi';
 import { resolveMediaUrl } from '../shared/utils';
 import ConfirmModal from '../shared/ConfirmModal';
@@ -32,6 +33,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function ChatLayout() {
     const navigate = useNavigate();
     const accessToken = useAuthStore((s) => s.accessToken);
+    const refreshToken = useAuthStore((s) => s.refreshToken);
     const username = useAuthStore((s) => s.username);
     const avatarUrl = useAuthStore((s) => s.avatarUrl);
     const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl);
@@ -70,9 +72,17 @@ function ChatLayout() {
         };
     }, [accessToken, setAvatarUrl, setUsername]);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        if (refreshToken) {
+            try {
+                await logoutSession(refreshToken);
+            } catch {
+                // Best-effort logout; clear local auth regardless.
+            }
+        }
         wsService.disconnect();
         clearAuth();
+        navigate('/login', { replace: true });
     };
 
     useEffect(() => {
@@ -271,7 +281,7 @@ function ChatLayout() {
                 onCancel={() => setLogoutConfirmOpen(false)}
                 onConfirm={() => {
                     setLogoutConfirmOpen(false);
-                    handleLogout();
+                    void handleLogout();
                 }}
             />
         </div>

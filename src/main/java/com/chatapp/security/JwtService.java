@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
@@ -34,8 +35,11 @@ public class JwtService {
         return buildToken(userId, username, accessTokenExpirationMs, Map.of("type", "access"));
     }
 
-    public String generateRefreshToken(UUID userId, String username) {
-        return buildToken(userId, username, refreshTokenExpirationMs, Map.of("type", "refresh"));
+    public RefreshToken generateRefreshToken(UUID userId, String username) {
+        UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plusMillis(refreshTokenExpirationMs);
+        String token = buildToken(userId, username, refreshTokenExpirationMs, Map.of("type", "refresh", "jti", tokenId.toString()));
+        return new RefreshToken(token, tokenId, expiresAt);
     }
 
     private String buildToken(UUID userId, String username, long expirationMs, Map<String, Object> extraClaims) {
@@ -74,6 +78,16 @@ public class JwtService {
         return extractClaim(token, claims -> claims.get("type", String.class));
     }
 
+    public UUID extractTokenId(String token) {
+        String tokenId = extractClaim(token, claims -> claims.get("jti", String.class));
+        return tokenId == null ? null : UUID.fromString(tokenId);
+    }
+
+    public Instant extractExpiration(String token) {
+        Date expiration = extractClaim(token, Claims::getExpiration);
+        return expiration == null ? null : expiration.toInstant();
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
@@ -85,5 +99,8 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    public record RefreshToken(String value, UUID tokenId, Instant expiresAt) {
     }
 }

@@ -9,6 +9,31 @@ const httpClient = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+let refreshRequest: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+    const authState = useAuthStore.getState();
+    const refreshToken = authState.refreshToken;
+
+    if (!refreshToken) {
+        return null;
+    }
+
+    const response = await axios.post(`${apiBaseUrl}/auth/refresh`, { refreshToken }, {
+        headers: { 'Content-Type': 'application/json' },
+    });
+
+    const nextAuth = response.data as {
+        accessToken: string;
+        refreshToken: string;
+        userId: string;
+        username: string;
+    };
+
+    useAuthStore.getState().setAuth(nextAuth);
+    return nextAuth.accessToken;
+}
+
 httpClient.interceptors.request.use((config) => {
     const token = useAuthStore.getState().accessToken;
     if (token) {
@@ -19,8 +44,36 @@ httpClient.interceptors.request.use((config) => {
 
 httpClient.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
+    async (error) => {
+        const status = error.response?.status;
+        const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
+        const requestUrl = String(originalRequest?.url ?? '');
+        const isAuthRefreshRequest = requestUrl.includes('/auth/refresh');
+
+        if (status === 401 && originalRequest && !originalRequest._retry && !isAuthRefreshRequest) {
+            originalRequest._retry = true;
+
+            try {
+                refreshRequest ??= refreshAccessToken().finally(() => {
+                    refreshRequest = null;
+                });
+
+                const accessToken = await refreshRequest;
+                if (!accessToken) {
+                    throw new Error('No refreshed access token available');
+                }
+
+                originalRequest.headers = originalRequest.headers ?? {};
+                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                return httpClient(originalRequest);
+            } catch (refreshError) {
+                useAuthStore.getState().clearAuth();
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            }
+        }
+
+        if (status === 401) {
             useAuthStore.getState().clearAuth();
             window.location.href = '/login';
         }

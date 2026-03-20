@@ -2,8 +2,10 @@ package com.chatapp.service;
 
 import com.chatapp.dto.AuthResponse;
 import com.chatapp.dto.LoginRequest;
+import com.chatapp.dto.RefreshTokenRequest;
 import com.chatapp.dto.RegisterRequest;
 import com.chatapp.exception.DuplicateResourceException;
+import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtService;
@@ -24,6 +26,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final RefreshTokenStore refreshTokenStore;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -43,7 +46,7 @@ public class AuthService {
         User saved = userRepository.save(user);
         log.info("User registered: username={}", saved.getUsername());
 
-        return buildAuthResponse(saved);
+        return issueTokens(saved);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -54,16 +57,55 @@ public class AuthService {
                 .orElseThrow();
 
         log.info("User logged in: username={}", user.getUsername());
-        return buildAuthResponse(user);
+        return issueTokens(user);
     }
 
-    private AuthResponse buildAuthResponse(User user) {
+    @Transactional
+    public AuthResponse refresh(RefreshTokenRequest request) {
+        String refreshTokenValue = request.getRefreshToken();
+        if (!jwtService.isTokenValid(refreshTokenValue)) {
+            throw new UnauthorizedException("Invalid refresh token");
+        }
+        if (!"refresh".equals(jwtService.extractTokenType(refreshTokenValue))) {
+            throw new UnauthorizedException("Invalid token type");
+        }
+
+        java.util.UUID userId = jwtService.extractUserId(refreshTokenValue);
+        java.util.UUID tokenId = jwtService.extractTokenId(refreshTokenValue);
+
+        if (tokenId == null || !refreshTokenStore.isValid(tokenId, userId)) {
+            throw new UnauthorizedException("Refresh token has been revoked");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
+
+        refreshTokenStore.revoke(tokenId);
+        log.info("Refresh token rotated: userId={}", userId);
+        return issueTokens(user);
+    }
+
+    public void logout(RefreshTokenRequest request) {
+        String refreshTokenValue = request.getRefreshToken();
+        if (!jwtService.isTokenValid(refreshTokenValue)) {
+            return;
+        }
+        if (!"refresh".equals(jwtService.extractTokenType(refreshTokenValue))) {
+            return;
+        }
+
+        java.util.UUID tokenId = jwtService.extractTokenId(refreshTokenValue);
+        refreshTokenStore.revoke(tokenId);
+    }
+
+    private AuthResponse issueTokens(User user) {
         String accessToken = jwtService.generateAccessToken(user.getId(), user.getUsername());
-        String refreshToken = jwtService.generateRefreshToken(user.getId(), user.getUsername());
+        JwtService.RefreshToken refreshToken = jwtService.generateRefreshToken(user.getId(), user.getUsername());
+        refreshTokenStore.store(refreshToken.tokenId(), user.getId(), refreshToken.expiresAt());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(refreshToken.value())
                 .tokenType("Bearer")
                 .userId(user.getId())
                 .username(user.getUsername())
