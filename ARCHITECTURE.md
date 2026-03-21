@@ -9,6 +9,7 @@ Whisprly is a single-backend real-time chat system with:
 - Redis for distributed presence and refresh-token state when enabled
 - WebSocket/STOMP for realtime delivery
 - React frontend using REST for fetch/update flows and WebSocket for live updates
+- username/email login plus Google sign-in feeding the same JWT-based session model
 
 Internal persistence uses UUIDs, while public-facing interactions use usernames, room slugs, and invite codes.
 
@@ -71,6 +72,7 @@ Responsibilities:
 - enforce authorization and membership rules
 - manage room, DM, and message lifecycle
 - compute unread state
+- enforce block rules across DM request, DM creation, and DM message-send paths
 - manage presence and refresh-token state through pluggable stores
 - resolve public IDs to internal entities
 - persist domain state
@@ -116,7 +118,7 @@ They include queries for:
 
 - membership checks
 - room lookup by slug / invite code
-- user lookup by username
+- user lookup by username / email
 - unread count calculation
 - room/global message search
 - expired message fetch
@@ -298,7 +300,7 @@ This lets presence scale beyond a single application instance without changing c
 ### A. Send Message
 
 1. Client sends message through STOMP using room slug.
-2. Backend validates membership and room policy.
+2. Backend validates membership, room policy, and DM block rules.
 3. Message is saved.
 4. `MessageCreatedEvent` is published.
 5. Listener broadcasts the message to the room topic.
@@ -343,7 +345,15 @@ This lets presence scale beyond a single application instance without changing c
 5. On `/api/auth/logout`, the backend revokes the current refresh token.
 6. Frontend retries a failed request once after automatic refresh.
 
-### G. Message Search and Jump
+### G. Login and Identity Flow
+
+1. Client submits a single login identifier field plus password.
+2. Backend resolves that identifier as either username or email.
+3. Spring Security authenticates against the same user record and password hash.
+4. On success, the backend issues the standard access token + refresh token pair.
+5. Google sign-in follows the same final token issuance path after Google ID token verification.
+
+### H. Message Search and Jump
 
 1. Client searches globally or inside a room.
 2. Backend runs scoped search query.
@@ -398,8 +408,11 @@ State is handled with Zustand stores:
 
 - JWT secures REST endpoints
 - authenticated identity is used for WebSocket sessions
+- login accepts username or email through the same authentication entry point
+- Google ID tokens can be exchanged for app JWTs through `/api/auth/google`
 - refresh tokens are rotated and can be revoked
 - room membership is checked before message/history access
+- direct-message block rules are enforced before DM request creation, DM room creation, and DM message sends
 - typing events are accepted only through validated app destinations
 - role rules protect room management actions
 - attachment validation runs before storage
@@ -418,9 +431,11 @@ Attachments are:
 Current backend tests cover:
 
 - auth refresh-token issuance, rotation, and revoked-token rejection
+- username/email login resolution
 - in-memory presence session accounting
 - Redis presence-store behavior using mocked Redis operations
 - `PresenceService` websocket event handling
+- DM block enforcement for message send
 
 ## 15. Current Tradeoffs
 
