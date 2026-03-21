@@ -20,6 +20,7 @@ import {
 } from './messageApi';
 import { generateIdempotencyKey, getInitials, resolveMediaUrl } from '../../shared/utils';
 import { fetchUserSummary } from '../profile/profileApi';
+import { useBlockStore } from '../profile/blockStore';
 import { usePresenceStore } from '../presence/presenceStore';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -30,6 +31,8 @@ interface DmParticipant {
     username: string;
     fullName: string | null;
     avatarUrl: string | null;
+    blockedByCurrentUser: boolean;
+    blocksCurrentUser: boolean;
 }
 
 function getDmNameFallback(roomName: string, currentUsername: string | null): string {
@@ -75,6 +78,7 @@ export default function ChatPanel() {
     const clearJumpTarget = useChatStore((s) => s.clearJumpTarget);
     const failMessage = useChatStore((s) => s.failMessage);
     const isUserOnline = usePresenceStore((s) => s.isUserOnline);
+    const syncBlockSummary = useBlockStore((s) => s.syncSummary);
 
     const [loading, setLoading] = useState(false);
     const [dmParticipant, setDmParticipant] = useState<DmParticipant | null>(null);
@@ -92,6 +96,7 @@ export default function ChatPanel() {
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const roomSearchRef = useRef<HTMLDivElement | null>(null);
     const [atBottom, setAtBottom] = useState(true);
+    const dmBlockState = useBlockStore((s) => (dmParticipant ? s.byUserId[dmParticipant.id] : undefined));
 
     const isDmRoom = activeRoom?.type === 'DM';
     const dmNameFallback = activeRoom ? getDmNameFallback(activeRoom.name, username) : 'Direct Message';
@@ -201,11 +206,14 @@ export default function ChatPanel() {
 
                 const summary = await fetchUserSummary(otherMember.userId);
                 if (!cancelled) {
+                    syncBlockSummary(summary);
                     setDmParticipant({
                         id: summary.id,
                         username: summary.username,
                         fullName: summary.fullName ?? null,
                         avatarUrl: summary.avatarUrl,
+                        blockedByCurrentUser: summary.blockedByCurrentUser,
+                        blocksCurrentUser: summary.blocksCurrentUser,
                     });
                 }
             } catch (error) {
@@ -220,7 +228,7 @@ export default function ChatPanel() {
         return () => {
             cancelled = true;
         };
-    }, [activeRoomId, activeRoom, userId]);
+    }, [activeRoomId, activeRoom, userId, syncBlockSummary]);
 
     useEffect(() => {
         setHeaderMenuOpen(false);
@@ -472,6 +480,15 @@ export default function ChatPanel() {
     const dmOnline = isUserOnline(dmParticipant?.id);
     const roomOnlineCount = activeRoom ? (onlineCountsByRoom[activeRoom.slug] ?? 0) : 0;
     const selfDestructSeconds = activeRoom?.selfDestructSeconds ?? null;
+    const dmBlockedReason = isDmRoom
+        ? (
+            dmBlockState?.blocksCurrentUser
+                ? 'You have been blocked by this user. You cannot send messages in this conversation.'
+                : dmBlockState?.blockedByCurrentUser
+                    ? 'You blocked this user. Unblock them from their profile to send messages again.'
+                    : null
+        )
+        : null;
     const headerStatusText = isDmRoom
         ? (dmOnline ? 'Online' : 'Offline')
         : `${roomOnlineCount} online · ${activeRoom.memberCount} member${activeRoom.memberCount !== 1 ? 's' : ''}`;
@@ -701,11 +718,17 @@ export default function ChatPanel() {
                     </div>
                 )}
 
+                {dmBlockedReason && (
+                    <div className="chat-block-banner" role="status" aria-live="polite">
+                        {dmBlockedReason}
+                    </div>
+                )}
+
                 <ChatInput
                     onSendText={handleSend}
                     onTypingChange={handleTypingChange}
                     onUploadAttachment={handleUploadAttachment}
-                    disabled={connectionStatus !== 'connected'}
+                    disabled={connectionStatus !== 'connected' || !!dmBlockedReason}
                     editMode={
                         editingMessage
                             ? {

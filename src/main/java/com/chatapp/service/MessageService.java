@@ -11,6 +11,7 @@ import com.chatapp.model.ChatRoomMember;
 import com.chatapp.model.MemberRole;
 import com.chatapp.model.Message;
 import com.chatapp.model.MessageType;
+import com.chatapp.model.RoomType;
 import com.chatapp.model.User;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.ChatRoomRepository;
@@ -49,6 +50,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final AttachmentValidationService attachmentValidationService;
+    private final UserBlockService userBlockService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -356,6 +358,18 @@ public class MessageService {
 
         ChatRoomMember senderMembership = memberRepository.findByRoomIdAndUserId(roomId, senderId)
                 .orElseThrow(() -> new AccessDeniedException("You are not a member of this room"));
+
+        if (room.getType() == RoomType.DM) {
+            memberRepository.findMembersWithUserByRoomId(roomId).stream()
+                    .map(ChatRoomMember::getUser)
+                    .map(User::getId)
+                    .filter(memberUserId -> !memberUserId.equals(senderId))
+                    .findFirst()
+                    .filter(otherUserId -> userBlockService.existsBlockBetween(senderId, otherUserId))
+                    .ifPresent(otherUserId -> {
+                        throw new AccessDeniedException("Cannot send message due to user block settings");
+                    });
+        }
 
         if (!Boolean.TRUE.equals(room.getMembersCanMessage())
                 && senderMembership.getRole() == MemberRole.MEMBER) {

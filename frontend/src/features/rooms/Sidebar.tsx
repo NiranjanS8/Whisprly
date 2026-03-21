@@ -6,6 +6,7 @@ import { fetchIncomingDmRequests, sendDmRequest, acceptDmRequest, rejectDmReques
 import type { Room } from './roomApi';
 import { useDmRequestStore } from './dmRequestStore';
 import { blockUser, fetchUserSummary, type UserSummary, unblockUser } from '../profile/profileApi';
+import { useBlockStore } from '../profile/blockStore';
 import { useAuthStore } from '../auth/authStore';
 import { useChatStore } from '../chat/chatStore';
 import { fetchMessages } from '../chat/messageApi';
@@ -162,6 +163,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const userId = useAuthStore((s) => s.userId);
     const username = useAuthStore((s) => s.username);
     const onlineByUserId = usePresenceStore((s) => s.onlineByUserId);
+    const syncBlockSummary = useBlockStore((s) => s.syncSummary);
+    const setBlockedByCurrentUser = useBlockStore((s) => s.setBlockedByCurrentUser);
 
     const [composerMode, setComposerMode] = useState<ComposerMode>('none');
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -301,6 +304,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 const memberIdsByRoom: Record<string, string[]> = {};
                 const dmNames: Record<string, string> = {};
                 const dmAvatars: Record<string, string | null> = {};
+                const dmBlockedState: Record<string, boolean> = {};
 
                 for (let index = 0; index < roomMembershipSeed.length; index++) {
                     const room = roomMembershipSeed[index];
@@ -312,8 +316,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         if (otherMember) {
                             const summary = await fetchUserSummary(otherMember.userId).catch((): UserSummary | null => null);
                             if (summary) {
+                                syncBlockSummary(summary);
                                 dmNames[room.slug] = summary.fullName?.trim() || summary.username;
                                 dmAvatars[room.slug] = summary.avatarUrl ?? null;
+                                dmBlockedState[room.slug] = summary.blockedByCurrentUser;
                             }
                         }
                     }
@@ -323,12 +329,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     setRoomMemberIdsByRoom(memberIdsByRoom);
                     setDmDisplayNameByRoom(dmNames);
                     setDmAvatarUrlByRoom(dmAvatars);
+                    setBlockedDmRoomIds(dmBlockedState);
                 }
             } catch {
                 if (!cancelled) {
                     setRoomMemberIdsByRoom({});
                     setDmDisplayNameByRoom({});
                     setDmAvatarUrlByRoom({});
+                    setBlockedDmRoomIds({});
                 }
             }
         };
@@ -337,7 +345,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         return () => {
             cancelled = true;
         };
-    }, [roomMembershipSeed, userId, setOnlineCountsByRoom]);
+    }, [roomMembershipSeed, userId, setOnlineCountsByRoom, syncBlockSummary]);
 
     useEffect(() => {
         const counts: Record<string, number> = {};
@@ -642,12 +650,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             } else {
                 await unblockUser(summary.id);
             }
+            setBlockedByCurrentUser(summary.id, willBlock);
             setBlockedDmRoomIds((prev) => ({ ...prev, [room.slug]: willBlock }));
             const displayName = summary.fullName?.trim() || summary.username;
             setCopiedText(willBlock ? `${displayName} blocked` : `${displayName} unblocked`);
             setTimeout(() => setCopiedText(''), 1800);
-        } catch {
-            setCopiedText('Failed to update block state');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to update block state';
+            setCopiedText(msg);
             setTimeout(() => setCopiedText(''), 1800);
         } finally {
             setRoomMenuOpenId(null);

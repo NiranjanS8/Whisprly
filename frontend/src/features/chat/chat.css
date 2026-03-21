@@ -1573,6 +1573,18 @@
     color: #8090a5;
 }
 
+.chat-block-banner {
+    width: min(calc(100% - 24px), 920px);
+    margin: 0 auto 8px;
+    padding: 11px 13px;
+    border-radius: 14px;
+    border: 1px solid rgba(245, 158, 158, 0.22);
+    background: rgba(127, 29, 29, 0.18);
+    color: #f3c2c2;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .chat-input-container {
     width: min(100%, 960px);
     margin: 0 auto;

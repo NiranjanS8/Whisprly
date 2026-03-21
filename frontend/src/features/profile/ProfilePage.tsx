@@ -5,6 +5,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useRoomStore } from '../rooms/roomStore';
 import { startDmByUsername } from '../rooms/roomApi';
 import { blockUser, fetchMyProfile, fetchUserSummary, fetchUserSummaryByUsername, unblockUser, updateMyProfile } from './profileApi';
+import { useBlockStore } from './blockStore';
 import type { UserProfile } from './profileApi';
 import './profile.css';
 
@@ -68,6 +69,8 @@ export default function ProfilePage() {
     const upsertRoom = useRoomStore((s) => s.upsertRoom);
     const myUserId = useAuthStore((s) => s.userId);
     const myUsername = useAuthStore((s) => s.username);
+    const syncBlockSummary = useBlockStore((s) => s.syncSummary);
+    const setBlockedByCurrentUser = useBlockStore((s) => s.setBlockedByCurrentUser);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -98,6 +101,7 @@ export default function ProfilePage() {
             request
                 .then((summary) => {
                     if (!mounted) return;
+                    syncBlockSummary(summary);
                     setReadonlyProfile({
                         id: summary.id,
                         username: summary.username,
@@ -146,7 +150,7 @@ export default function ProfilePage() {
         return () => {
             mounted = false;
         };
-    }, [viewUserId, viewUsername, myUserId, myUsername]);
+    }, [viewUserId, viewUsername, myUserId, myUsername, syncBlockSummary]);
 
     const displayName = useMemo(() => form.fullName.trim() || form.username.trim(), [form.fullName, form.username]);
 
@@ -257,10 +261,12 @@ export default function ProfilePage() {
         try {
             if (readonlyProfile.blockedByCurrentUser) {
                 await unblockUser(readonlyProfile.id);
+                setBlockedByCurrentUser(readonlyProfile.id, false);
                 setReadonlyProfile((prev) => prev ? { ...prev, blockedByCurrentUser: false } : prev);
                 setSuccess(`@${readonlyProfile.username} unblocked`);
             } else {
                 await blockUser(readonlyProfile.id);
+                setBlockedByCurrentUser(readonlyProfile.id, true);
                 setReadonlyProfile((prev) => prev ? { ...prev, blockedByCurrentUser: true } : prev);
                 setSuccess(`@${readonlyProfile.username} blocked`);
             }
