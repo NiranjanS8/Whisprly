@@ -51,6 +51,8 @@ app:
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:86400000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
   auth:
+    google:
+      client-id: ${APP_GOOGLE_CLIENT_ID:}
     refresh-token:
       store: ${APP_AUTH_REFRESH_TOKEN_STORE:memory}
       redis-key-prefix: ${APP_AUTH_REFRESH_TOKEN_REDIS_KEY_PREFIX:chatapp:auth:refresh}

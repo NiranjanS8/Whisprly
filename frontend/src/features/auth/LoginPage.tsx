@@ -1,7 +1,8 @@
 import { type FormEvent, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { loginUser } from './authApi';
+import { loginUser, loginWithGoogle } from './authApi';
 import { useAuthStore } from './authStore';
+import GoogleSignInButton from './GoogleSignInButton';
 import './auth.css';
 
 export default function LoginPage() {
@@ -22,6 +23,20 @@ export default function LoginPage() {
             navigate('/chat');
         } catch (err: any) {
             setError(err.response?.data?.message || 'Login failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async (credential: string) => {
+        setError('');
+        setLoading(true);
+        try {
+            const res = await loginWithGoogle(credential);
+            setAuth(res);
+            navigate('/chat');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Google sign-in failed');
         } finally {
             setLoading(false);
         }
@@ -65,6 +80,7 @@ export default function LoginPage() {
                         {loading ? <span className="spinner" /> : 'Sign In'}
                     </button>
                 </form>
+                <GoogleSignInButton onCredential={handleGoogleSignIn} disabled={loading} />
                 <p className="auth-switch">
                     Don't have an account? <Link to="/register">Sign up</Link>
                 </p>

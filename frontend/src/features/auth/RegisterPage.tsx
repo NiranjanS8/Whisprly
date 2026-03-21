@@ -1,7 +1,8 @@
 import { type FormEvent, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { registerUser } from './authApi';
+import { loginWithGoogle, registerUser } from './authApi';
 import { useAuthStore } from './authStore';
+import GoogleSignInButton from './GoogleSignInButton';
 import './auth.css';
 
 export default function RegisterPage() {
@@ -23,6 +24,20 @@ export default function RegisterPage() {
             navigate('/chat');
         } catch (err: any) {
             setError(err.response?.data?.message || 'Registration failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async (credential: string) => {
+        setError('');
+        setLoading(true);
+        try {
+            const res = await loginWithGoogle(credential);
+            setAuth(res);
+            navigate('/chat');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Google sign-in failed');
         } finally {
             setLoading(false);
         }
@@ -79,6 +94,7 @@ export default function RegisterPage() {
                         {loading ? <span className="spinner" /> : 'Create Account'}
                     </button>
                 </form>
+                <GoogleSignInButton onCredential={handleGoogleSignIn} disabled={loading} />
                 <p className="auth-switch">
                     Already have an account? <Link to="/login">Sign in</Link>
                 </p>

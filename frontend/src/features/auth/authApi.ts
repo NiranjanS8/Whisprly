@@ -22,6 +22,11 @@ export async function loginUser(username: string, password: string): Promise<Aut
     return res.data;
 }
 
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+    const res = await httpClient.post<AuthResponse>('/auth/google', { idToken });
+    return res.data;
+}
+
 export async function refreshSession(refreshToken: string): Promise<AuthResponse> {
     const res = await httpClient.post<AuthResponse>('/auth/refresh', { refreshToken });
     return res.data;

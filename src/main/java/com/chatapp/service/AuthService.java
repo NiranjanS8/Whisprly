@@ -1,6 +1,7 @@
 package com.chatapp.service;
 
 import com.chatapp.dto.AuthResponse;
+import com.chatapp.dto.GoogleAuthRequest;
 import com.chatapp.dto.LoginRequest;
 import com.chatapp.dto.RefreshTokenRequest;
 import com.chatapp.dto.RegisterRequest;
@@ -17,6 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -27,6 +31,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenStore refreshTokenStore;
+    private final GoogleIdentityService googleIdentityService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -57,6 +62,18 @@ public class AuthService {
                 .orElseThrow();
 
         log.info("User logged in: username={}", user.getUsername());
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public AuthResponse googleLogin(GoogleAuthRequest request) {
+        GoogleIdentityService.GoogleIdentity identity = googleIdentityService.verify(request.getIdToken());
+
+        User user = userRepository.findByEmail(identity.email())
+                .map(existingUser -> updateGoogleProfile(existingUser, identity))
+                .orElseGet(() -> createGoogleUser(identity));
+
+        log.info("Google sign-in completed: email={}", user.getEmail());
         return issueTokens(user);
     }
 
@@ -96,6 +113,72 @@ public class AuthService {
 
         java.util.UUID tokenId = jwtService.extractTokenId(refreshTokenValue);
         refreshTokenStore.revoke(tokenId);
+    }
+
+    private User createGoogleUser(GoogleIdentityService.GoogleIdentity identity) {
+        String username = generateUniqueUsername(identity.email(), identity.fullName());
+        User user = User.builder()
+                .username(username)
+                .email(identity.email())
+                .fullName(identity.fullName())
+                .avatarUrl(identity.avatarUrl())
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .build();
+        return userRepository.save(user);
+    }
+
+    private User updateGoogleProfile(User user, GoogleIdentityService.GoogleIdentity identity) {
+        boolean changed = false;
+
+        if ((user.getFullName() == null || user.getFullName().isBlank())
+                && identity.fullName() != null && !identity.fullName().isBlank()) {
+            user.setFullName(identity.fullName());
+            changed = true;
+        }
+
+        if ((user.getAvatarUrl() == null || user.getAvatarUrl().isBlank())
+                && identity.avatarUrl() != null && !identity.avatarUrl().isBlank()) {
+            user.setAvatarUrl(identity.avatarUrl());
+            changed = true;
+        }
+
+        return changed ? userRepository.save(user) : user;
+    }
+
+    private String generateUniqueUsername(String email, String fullName) {
+        String candidate = sanitizeUsername(baseUsername(email, fullName));
+        if (!userRepository.existsByUsernameIgnoreCase(candidate)) {
+            return candidate;
+        }
+
+        for (int attempt = 1; attempt <= 100; attempt++) {
+            String variant = candidate + attempt;
+            if (!userRepository.existsByUsernameIgnoreCase(variant)) {
+                return variant;
+            }
+        }
+
+        return candidate + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String baseUsername(String email, String fullName) {
+        if (fullName != null && !fullName.isBlank()) {
+            return fullName;
+        }
+        int atIndex = email.indexOf('@');
+        return atIndex > 0 ? email.substring(0, atIndex) : email;
+    }
+
+    private String sanitizeUsername(String raw) {
+        String normalized = raw == null ? "user" : raw.toLowerCase(Locale.ROOT).trim();
+        normalized = normalized.replaceAll("[^a-z0-9._-]+", "");
+        if (normalized.length() < 3) {
+            normalized = normalized + "user";
+        }
+        if (normalized.length() > 50) {
+            normalized = normalized.substring(0, 50);
+        }
+        return normalized;
     }
 
     private AuthResponse issueTokens(User user) {

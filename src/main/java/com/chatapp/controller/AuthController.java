@@ -1,6 +1,7 @@
 package com.chatapp.controller;
 
 import com.chatapp.dto.AuthResponse;
+import com.chatapp.dto.GoogleAuthRequest;
 import com.chatapp.dto.LoginRequest;
 import com.chatapp.dto.RefreshTokenRequest;
 import com.chatapp.dto.RegisterRequest;
@@ -30,6 +31,12 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> google(@Valid @RequestBody GoogleAuthRequest request) {
+        AuthResponse response = authService.googleLogin(request);
         return ResponseEntity.ok(response);
     }
 
