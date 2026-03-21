@@ -17,8 +17,8 @@ export async function registerUser(username: string, email: string, password: st
     return res.data;
 }
 
-export async function loginUser(username: string, password: string): Promise<AuthResponse> {
-    const res = await httpClient.post<AuthResponse>('/auth/login', { username, password });
+export async function loginUser(identifier: string, password: string): Promise<AuthResponse> {
+    const res = await httpClient.post<AuthResponse>('/auth/login', { identifier, password });
     return res.data;
 }
 

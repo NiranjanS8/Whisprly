@@ -6,7 +6,7 @@ import GoogleSignInButton from './GoogleSignInButton';
 import './auth.css';
 
 export default function LoginPage() {
-    const [username, setUsername] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
         setError('');
         setLoading(true);
         try {
-            const res = await loginUser(username, password);
+            const res = await loginUser(identifier, password);
             setAuth(res);
             navigate('/chat');
         } catch (err: any) {
@@ -52,13 +52,13 @@ export default function LoginPage() {
                 <form className="auth-form" onSubmit={handleSubmit}>
                     {error && <div className="auth-error">{error}</div>}
                     <div className="auth-field">
-                        <label htmlFor="username">Username</label>
+                        <label htmlFor="identifier">Username or Email</label>
                         <input
-                            id="username"
+                            id="identifier"
                             type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Enter your username"
+                            value={identifier}
+                            onChange={(e) => setIdentifier(e.target.value)}
+                            placeholder="Enter your username or email"
                             required
                             autoFocus
                             autoComplete="username"

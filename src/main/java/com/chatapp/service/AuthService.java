@@ -55,10 +55,12 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        String identifier = request.getIdentifier().trim();
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
+                new UsernamePasswordAuthenticationToken(identifier, request.getPassword()));
 
-        User user = userRepository.findByUsername(request.getUsername())
+        User user = userRepository.findByUsernameIgnoreCase(identifier)
+                .or(() -> userRepository.findByEmailIgnoreCase(identifier))
                 .orElseThrow();
 
         log.info("User logged in: username={}", user.getUsername());

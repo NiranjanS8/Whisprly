@@ -1,6 +1,7 @@
 package com.chatapp.service;
 
 import com.chatapp.dto.AuthResponse;
+import com.chatapp.dto.LoginRequest;
 import com.chatapp.dto.RefreshTokenRequest;
 import com.chatapp.dto.RegisterRequest;
 import com.chatapp.exception.UnauthorizedException;
@@ -13,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -22,6 +24,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -123,5 +126,34 @@ class AuthServiceTest {
 
         verify(refreshTokenStore, never()).revoke(oldTokenId);
         verify(refreshTokenStore, never()).store(any(), any(), any());
+    }
+
+    @Test
+    void loginAcceptsEmailIdentifier() {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .id(userId)
+                .username("alice")
+                .email("alice@example.com")
+                .password("encoded")
+                .build();
+        UUID refreshTokenId = UUID.randomUUID();
+        Instant refreshExpiry = Instant.now().plusSeconds(600);
+
+        when(userRepository.findByUsernameIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(userId, "alice")).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(userId, "alice"))
+                .thenReturn(new JwtService.RefreshToken("refresh-token", refreshTokenId, refreshExpiry));
+
+        AuthResponse response = authService.login(new LoginRequest("alice@example.com", "password123"));
+
+        assertEquals("access-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
+        verify(authenticationManager).authenticate(argThat(auth ->
+                auth instanceof UsernamePasswordAuthenticationToken
+                        && "alice@example.com".equals(auth.getPrincipal())
+                        && "password123".equals(auth.getCredentials())));
+        verify(refreshTokenStore).store(refreshTokenId, userId, refreshExpiry);
     }
 }
