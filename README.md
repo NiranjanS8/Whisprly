@@ -106,7 +106,10 @@ Current automated backend tests cover:
 
 - refresh-token issuance, rotation, and revoked-token rejection
 - username/email login resolution
+- Postgres-backed auth integration tests with Testcontainers
 - in-memory presence session counting
 - Redis presence store behavior with mocked Redis operations
 - `PresenceService` websocket event handling
 - DM block enforcement for message send
+
+Testcontainers-backed integration tests run automatically when Docker is available and are skipped otherwise.

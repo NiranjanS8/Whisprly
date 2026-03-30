@@ -13,8 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -40,9 +38,6 @@ class AuthServiceTest {
 
     @Mock
     private JwtService jwtService;
-
-    @Mock
-    private AuthenticationManager authenticationManager;
 
     @Mock
     private RefreshTokenStore refreshTokenStore;
@@ -142,6 +137,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsernameIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encoded")).thenReturn(true);
         when(jwtService.generateAccessToken(userId, "alice")).thenReturn("access-token");
         when(jwtService.generateRefreshToken(userId, "alice"))
                 .thenReturn(new JwtService.RefreshToken("refresh-token", refreshTokenId, refreshExpiry));
@@ -150,10 +146,6 @@ class AuthServiceTest {
 
         assertEquals("access-token", response.getAccessToken());
         assertEquals("refresh-token", response.getRefreshToken());
-        verify(authenticationManager).authenticate(argThat(auth ->
-                auth instanceof UsernamePasswordAuthenticationToken
-                        && "alice@example.com".equals(auth.getPrincipal())
-                        && "password123".equals(auth.getCredentials())));
         verify(refreshTokenStore).store(refreshTokenId, userId, refreshExpiry);
     }
 }
