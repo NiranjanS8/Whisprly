@@ -12,8 +12,6 @@ import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +27,6 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final AuthenticationManager authenticationManager;
     private final RefreshTokenStore refreshTokenStore;
     private final GoogleIdentityService googleIdentityService;
 
@@ -56,12 +53,13 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         String identifier = request.getIdentifier().trim();
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(identifier, request.getPassword()));
-
         User user = userRepository.findByUsernameIgnoreCase(identifier)
                 .or(() -> userRepository.findByEmailIgnoreCase(identifier))
-                .orElseThrow();
+                .orElseThrow(() -> new UnauthorizedException("User does not exist"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new UnauthorizedException("Password does not match");
+        }
 
         log.info("User logged in: username={}", user.getUsername());
         return issueTokens(user);

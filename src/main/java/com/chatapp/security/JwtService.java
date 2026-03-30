@@ -34,13 +34,16 @@ public class JwtService {
 
     private void validateSecret(String secret) {
         if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException("APP_JWT_SECRET must be set");
+            throw new IllegalStateException(
+                    "APP_JWT_SECRET must be set. Add it to your environment or create a local .env file based on .env.example.");
         }
         if (secret.contains("replace_with_")) {
-            throw new IllegalStateException("APP_JWT_SECRET is still using a placeholder value");
+            throw new IllegalStateException(
+                    "APP_JWT_SECRET is still using a placeholder value. Replace it with a real random secret in your environment or .env file.");
         }
         if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
+            throw new IllegalStateException(
+                    "APP_JWT_SECRET must be at least 32 bytes. Use a longer random secret in your environment or .env file.");
         }
     }
 

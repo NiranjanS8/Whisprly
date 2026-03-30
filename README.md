@@ -4,7 +4,7 @@ Whisprly is a real-time chat platform built with Spring Boot + React.
 
 It combines REST APIs with WebSocket/STOMP fanout, uses PostgreSQL as the source of truth, and applies event-driven backend flows for realtime side effects.
 
-Recent backend upgrades include Redis-backed distributed presence, Redis-backed refresh-token storage, automatic access-token refresh on the frontend, Google sign-in support, and focused backend test coverage around auth + presence.
+Recent backend upgrades include Redis-backed distributed presence, Redis-backed refresh-token storage, automatic access-token refresh on the frontend, Google sign-in support, Flyway-managed schema migrations, and focused backend test coverage around auth + presence.
 
 ## What It Supports
 
@@ -68,6 +68,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system breakdown.
 - Refresh-token state can use `memory` or `redis`
 - Presence tracking can use `memory` or `redis`
 - Spring reads local `.env` values during startup, while real environment variables still take precedence
+- Database schema changes are managed through Flyway migrations under `src/main/resources/db/migration`
 
 ## Running with Redis
 
@@ -86,6 +87,18 @@ SPRING_DATA_REDIS_PASSWORD=
 If those are not set, the app falls back to in-memory presence and refresh-token stores.
 
 The backend will refuse to start if `APP_JWT_SECRET` is missing, still using the placeholder value, or shorter than the required minimum length.
+
+## Database Migrations
+
+- Flyway owns schema creation and schema evolution
+- Hibernate runs in validation mode to catch drift instead of mutating the database at startup
+- Existing local databases can be adopted with Flyway's baseline support, while fresh databases start from `V1__initial_schema.sql`
+
+Why this decision:
+
+- It makes database changes explicit, versioned, and reviewable
+- It keeps local, test, and production environments closer to each other
+- It better reflects production backend practices than relying on Hibernate schema auto-update
 
 ## Test Coverage
 

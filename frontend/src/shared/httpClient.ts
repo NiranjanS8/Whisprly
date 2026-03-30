@@ -11,6 +11,14 @@ const httpClient = axios.create({
 
 let refreshRequest: Promise<string | null> | null = null;
 
+function isAuthRoute(url: string) {
+    return url.includes('/auth/login')
+        || url.includes('/auth/register')
+        || url.includes('/auth/google')
+        || url.includes('/auth/refresh')
+        || url.includes('/auth/logout');
+}
+
 async function refreshAccessToken(): Promise<string | null> {
     const authState = useAuthStore.getState();
     const refreshToken = authState.refreshToken;
@@ -48,9 +56,9 @@ httpClient.interceptors.response.use(
         const status = error.response?.status;
         const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
         const requestUrl = String(originalRequest?.url ?? '');
-        const isAuthRefreshRequest = requestUrl.includes('/auth/refresh');
+        const isAuthenticationRequest = isAuthRoute(requestUrl);
 
-        if (status === 401 && originalRequest && !originalRequest._retry && !isAuthRefreshRequest) {
+        if (status === 401 && originalRequest && !originalRequest._retry && !isAuthenticationRequest) {
             originalRequest._retry = true;
 
             try {
@@ -73,7 +81,7 @@ httpClient.interceptors.response.use(
             }
         }
 
-        if (status === 401) {
+        if (status === 401 && !isAuthenticationRequest) {
             useAuthStore.getState().clearAuth();
             window.location.href = '/login';
         }

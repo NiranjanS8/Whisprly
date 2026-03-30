@@ -2,9 +2,6 @@ server:
   port: ${SERVER_PORT:9090}
 
 spring:
-  sql:
-    init:
-      mode: always
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -22,7 +19,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -30,6 +27,10 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
 
   jackson:
     serialization:
