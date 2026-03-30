@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: whisprly-postgres
+    environment:
+      POSTGRES_DB: chatapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: whisprly-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whisprly-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 9090
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chatapp
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APP_PRESENCE_STORE: redis
+      APP_AUTH_REFRESH_TOKEN_STORE: redis
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-0123456789abcdef0123456789abcdef}
+      APP_JWT_ACCESS_TOKEN_EXPIRATION_MS: 86400000
+      APP_JWT_REFRESH_TOKEN_EXPIRATION_MS: 604800000
+      APP_GOOGLE_CLIENT_ID: ${APP_GOOGLE_CLIENT_ID:-}
+      STORAGE_LOCATION: /app/uploads
+    ports:
+      - "9090:9090"
+    volumes:
+      - uploads-data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_ORIGIN: http://localhost:9090
+        VITE_API_BASE_URL: /api
+        VITE_WS_BASE_URL: /ws
+        VITE_GOOGLE_CLIENT_ID: ${APP_GOOGLE_CLIENT_ID:-}
+    container_name: whisprly-frontend
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads-data:

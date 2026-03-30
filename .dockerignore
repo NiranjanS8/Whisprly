@@ -1,0 +1,14 @@
+target/
+.git/
+.gitignore
+.vscode/
+.idea/
+*.iml
+*.log
+.env
+uploads/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build_output.txt
+frontend/tsc_errors*.txt

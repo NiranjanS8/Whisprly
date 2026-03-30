@@ -88,6 +88,28 @@ If those are not set, the app falls back to in-memory presence and refresh-token
 
 The backend will refuse to start if `APP_JWT_SECRET` is missing, still using the placeholder value, or shorter than the required minimum length.
 
+## One-Command Local Setup
+
+Run the full stack with:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- PostgreSQL on `localhost:5432`
+- Redis on `localhost:6379`
+- Spring Boot backend on `http://localhost:9090`
+- React frontend on `http://localhost:5173`
+
+Notes:
+
+- The compose setup uses container-to-container hostnames internally, so no manual `.env` edits are required for local boot
+- A local development JWT secret is provided automatically unless `APP_JWT_SECRET` is already set in your shell
+- Google sign-in stays optional; set `APP_GOOGLE_CLIENT_ID` before running compose if you want it enabled
+- Uploaded files, Postgres data, and Redis data are stored in named Docker volumes
+
 ## Database Migrations
 
 - Flyway owns schema creation and schema evolution
