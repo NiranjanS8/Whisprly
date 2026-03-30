@@ -6,6 +6,7 @@ import com.chatapp.dto.RefreshTokenRequest;
 import com.chatapp.dto.RegisterRequest;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.User;
+import com.chatapp.observability.AppMetrics;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtService;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +41,9 @@ class AuthServiceTest {
 
     @Mock
     private RefreshTokenStore refreshTokenStore;
+
+    @Mock
+    private AppMetrics appMetrics;
 
     @InjectMocks
     private AuthService authService;

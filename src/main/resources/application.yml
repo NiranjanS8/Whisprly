@@ -70,8 +70,41 @@ chat:
     max-file-size-bytes: ${CHAT_ATTACHMENT_MAX_FILE_SIZE_BYTES:26214400}
 
 logging:
+  pattern:
+    level: "%5p [req:%X{requestId:-}]"
   level:
     root: INFO
     com.chatapp: DEBUG
     org.springframework.security: INFO
     org.hibernate.SQL: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: whisprly
+
+info:
+  app:
+    name: Whisprly
+    description: Real-time chat backend with Spring Boot, PostgreSQL, Redis, and STOMP
+    observability:
+      request-correlation: true
+      custom-metrics: true
+      prometheus-endpoint: true

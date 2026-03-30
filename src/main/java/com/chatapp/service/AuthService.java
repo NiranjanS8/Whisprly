@@ -8,6 +8,7 @@ import com.chatapp.dto.RegisterRequest;
 import com.chatapp.exception.DuplicateResourceException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.User;
+import com.chatapp.observability.AppMetrics;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenStore refreshTokenStore;
     private final GoogleIdentityService googleIdentityService;
+    private final AppMetrics appMetrics;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -46,6 +48,7 @@ public class AuthService {
                 .build();
 
         User saved = userRepository.save(user);
+        appMetrics.recordRegistration();
         log.info("User registered: username={}", saved.getUsername());
 
         return issueTokens(saved);
@@ -61,6 +64,7 @@ public class AuthService {
             throw new UnauthorizedException("Password does not match");
         }
 
+        appMetrics.recordLogin();
         log.info("User logged in: username={}", user.getUsername());
         return issueTokens(user);
     }
@@ -73,6 +77,7 @@ public class AuthService {
                 .map(existingUser -> updateGoogleProfile(existingUser, identity))
                 .orElseGet(() -> createGoogleUser(identity));
 
+        appMetrics.recordGoogleLogin();
         log.info("Google sign-in completed: email={}", user.getEmail());
         return issueTokens(user);
     }
@@ -98,6 +103,7 @@ public class AuthService {
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
         refreshTokenStore.revoke(tokenId);
+        appMetrics.recordRefreshRotation();
         log.info("Refresh token rotated: userId={}", userId);
         return issueTokens(user);
     }
@@ -113,6 +119,7 @@ public class AuthService {
 
         java.util.UUID tokenId = jwtService.extractTokenId(refreshTokenValue);
         refreshTokenStore.revoke(tokenId);
+        appMetrics.recordLogout();
     }
 
     private User createGoogleUser(GoogleIdentityService.GoogleIdentity identity) {

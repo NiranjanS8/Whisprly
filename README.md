@@ -100,6 +100,18 @@ Why this decision:
 - It keeps local, test, and production environments closer to each other
 - It better reflects production backend practices than relying on Hibernate schema auto-update
 
+## Observability
+
+- Spring Boot Actuator endpoints exposed for `health`, `info`, `metrics`, and `prometheus`
+- Request correlation IDs added through `X-Request-Id`, echoed back in responses and included in logs
+- Custom Micrometer metrics added for auth flows, message sends, and live presence counts
+
+Why this decision:
+
+- It makes the backend easier to debug during local development and demos
+- It shows production-minded thinking beyond just implementing business logic
+- It gives a clear path to dashboards and alerting through Prometheus-compatible metrics
+
 ## Test Coverage
 
 Current automated backend tests cover:

@@ -13,6 +13,7 @@ import com.chatapp.model.Message;
 import com.chatapp.model.MessageType;
 import com.chatapp.model.RoomType;
 import com.chatapp.model.User;
+import com.chatapp.observability.AppMetrics;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.ChatRoomRepository;
 import com.chatapp.repository.MessageRepository;
@@ -52,6 +53,7 @@ public class MessageService {
     private final AttachmentValidationService attachmentValidationService;
     private final UserBlockService userBlockService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AppMetrics appMetrics;
 
     @Transactional
     public ChatMessageResponse sendMessage(UUID roomId, UUID senderId, String content, UUID idempotencyKey) {
@@ -85,6 +87,7 @@ public class MessageService {
 
         message = messageRepository.save(message);
 
+        appMetrics.recordMessageSent();
         log.info("Message sent: roomId={}, senderId={}", roomId, senderId);
 
         ChatMessageResponse response = toResponse(message);
@@ -130,6 +133,7 @@ public class MessageService {
         message = messageRepository.save(message);
         message.setAttachmentUrl(buildAttachmentUrl(room.getSlug(), message.getId()));
         message = messageRepository.save(message);
+        appMetrics.recordMessageSent();
         ChatMessageResponse response = toResponse(message);
         eventPublisher.publishEvent(new MessageCreatedEvent(room.getId(), room.getSlug(), response));
         return response;
@@ -156,6 +160,7 @@ public class MessageService {
                 .build();
 
         message = messageRepository.save(message);
+        appMetrics.recordMessageSent();
         ChatMessageResponse response = toResponse(message);
         eventPublisher.publishEvent(new MessageCreatedEvent(room.getId(), room.getSlug(), response));
         return response;

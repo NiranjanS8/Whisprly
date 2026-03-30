@@ -1,5 +1,6 @@
 package com.chatapp.service;
 
+import com.chatapp.observability.AppMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,6 +28,9 @@ class PresenceServiceTest {
 
     @Mock
     private PresenceStore presenceStore;
+
+    @Mock
+    private AppMetrics appMetrics;
 
     @InjectMocks
     private PresenceService presenceService;

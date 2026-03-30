@@ -1,5 +1,6 @@
 package com.chatapp.service;
 
+import com.chatapp.observability.AppMetrics;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -15,9 +16,11 @@ import java.util.UUID;
 public class PresenceService {
 
     private final PresenceStore presenceStore;
+    private final AppMetrics appMetrics;
 
-    public PresenceService(PresenceStore presenceStore) {
+    public PresenceService(PresenceStore presenceStore, AppMetrics appMetrics) {
         this.presenceStore = presenceStore;
+        this.appMetrics = appMetrics;
     }
 
     @EventListener
@@ -34,6 +37,7 @@ public class PresenceService {
         }
 
         presenceStore.registerSession(sessionId, userId);
+        appMetrics.recordPresenceConnect();
     }
 
     @EventListener
@@ -45,6 +49,7 @@ public class PresenceService {
         }
 
         presenceStore.unregisterSession(sessionId);
+        appMetrics.recordPresenceDisconnect();
     }
 
     public void refreshSession(String sessionId) {

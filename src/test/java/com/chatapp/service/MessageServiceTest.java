@@ -6,6 +6,7 @@ import com.chatapp.model.MemberRole;
 import com.chatapp.model.Message;
 import com.chatapp.model.RoomType;
 import com.chatapp.model.User;
+import com.chatapp.observability.AppMetrics;
 import com.chatapp.repository.ChatRoomMemberRepository;
 import com.chatapp.repository.ChatRoomRepository;
 import com.chatapp.repository.MessageRepository;
@@ -58,6 +59,9 @@ class MessageServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AppMetrics appMetrics;
 
     @InjectMocks
     private MessageService messageService;
